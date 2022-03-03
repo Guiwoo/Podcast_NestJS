@@ -1,14 +1,5 @@
-import { Field, InputType, ObjectType } from "@nestjs/graphql";
-import { CoreOutput } from "./common.dto";
+import { InputType, PickType } from '@nestjs/graphql';
+import { Podcast } from '../entities/podcast.entity';
 
 @InputType()
-export class CreatePodcastInput {
-  @Field(type => String)
-  title: string
-
-  @Field(type => String)
-  category: string
-}
-
-@ObjectType()
-export class CreatePodcastOutput extends CoreOutput { }
+export class CreatePodcastDto extends PickType(Podcast, ["title", "category"]) { }

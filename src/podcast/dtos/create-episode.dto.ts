@@ -1,8 +1,7 @@
-import { Field, InputType } from '@nestjs/graphql';
-import { CreatePodcastInput } from './create-podcast.dto';
-
+import { Field, InputType, PickType } from '@nestjs/graphql';
+import { Episode } from '../entities/episode.entity';
 @InputType()
-export class CreateEpisodeInput extends CreatePodcastInput {
-    @Field(types => Number)
-    podcastId: number
+export class CreateEpisodeDto extends PickType(Episode, ["title", "category"]) {
+  @Field(returns => Number)
+  podcastId: number
 }

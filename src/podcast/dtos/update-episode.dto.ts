@@ -1,12 +1,13 @@
-import { Field, InputType, OmitType, PartialType } from "@nestjs/graphql";
-import { Episode } from "../entities/episode.entity";
+import { InputType, Field, PickType, PartialType } from '@nestjs/graphql';
+import { Episode } from '../entities/episode.entity';
 
 @InputType()
-export class UpdateEpisodeInput extends PartialType(OmitType(Episode, ["id"])) {
-  @Field(types => Number)
+export class UpdateEpisodeDto extends PartialType(PickType(Episode, ["title", "category"])) {
+
+  @Field(returns => Number)
   podcastId: number
 
-  @Field(types => Number)
+  @Field(returns => Number)
   episodeId: number
 
 }
