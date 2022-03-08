@@ -9,3 +9,8 @@
 ## Day 3
 
 - Use db.SQL instead Fake DB
+
+## Day 4
+
+- User Login,and Create Account
+- Hashing password, Create JsonWebToken

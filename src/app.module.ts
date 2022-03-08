@@ -1,25 +1,34 @@
 import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { GraphQLModule } from '@nestjs/graphql';
 import { PodcastsModule } from './podcast/podcasts.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CoreModule } from './core/core.module';
 import { Podcast } from './podcast/entities/podcast.entity';
 import { Episode } from './podcast/entities/episode.entity';
+import { UserModule } from './user/user.module';
+import { CoreModule } from './core/core.module';
+import { User } from './user/entities/user.entity';
+import { JwtModule } from './jwt/jwt.module';
 
 @Module({
   imports: [
-    GraphQLModule.forRoot({ autoSchemaFile: true }),
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: 'db.sqlite',
-      logging: true,
+      database: 'db.sqlite3',
       synchronize: true,
-      entities: [Podcast, Episode]
+      logging: true,
+      entities: [Podcast, Episode, User],
     }),
-    CoreModule,
+    GraphQLModule.forRoot({ autoSchemaFile: true }),
+    JwtModule.forRoot({
+      SECRET_KEY: "HouuuuPodCast"
+    }),
+    UserModule,
     PodcastsModule,
+    CoreModule,
   ],
-  controllers: [],
-  providers: [],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule { }

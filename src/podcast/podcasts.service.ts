@@ -1,131 +1,173 @@
 import { Injectable } from '@nestjs/common';
-import { CreateEpisodeDto } from './dtos/create-episode.dto';
-import { CreatePodcastDto } from './dtos/create-podcast.dto';
-import { UpdateEpisodeDto } from './dtos/update-episode.dto';
-import { UpdatePodcastDto } from './dtos/update-podcast.dto';
+import {
+  CreateEpisodeInput,
+  CreateEpisodeOutput,
+} from './dtos/create-episode.dto';
+import {
+  CreatePodcastInput,
+  CreatePodcastOutput,
+} from './dtos/create-podcast.dto';
+import { UpdateEpisodeInput } from './dtos/update-episode.dto';
+import { UpdatePodcastInput } from './dtos/update-podcast.dto';
 import { Episode } from './entities/episode.entity';
 import { Podcast } from './entities/podcast.entity';
+
 import {
   PodcastOutput,
   EpisodesOutput,
   EpisodesSearchInput,
+  GetAllPodcastsOutput,
+  GetEpisodeOutput,
 } from './dtos/podcast.dto';
-import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CoreOutput } from 'src/core/dtos/coreOutput.dto';
-
-
-const flaseAndError = (msg: string): CoreOutput => {
-  return {
-    ok: false,
-    error: msg
-  }
-}
+import { Repository } from 'typeorm';
+import { CommonOutput } from 'src/core/dto/common.dto';
 
 @Injectable()
 export class PodcastsService {
   constructor(
-    @InjectRepository(Podcast) private readonly podcastRepository: Repository<Podcast>,
-    @InjectRepository(Episode) private readonly episodeRepository: Repository<Episode>
+    @InjectRepository(Podcast)
+    private readonly podcastRepository: Repository<Podcast>,
+    @InjectRepository(Episode)
+    private readonly episodeRepository: Repository<Episode>,
   ) { }
 
-  async getAllPodcasts(): Promise<Podcast[]> {
-    return await this.podcastRepository.find({ relations: ["episodes"] })
+  private readonly InternalServerErrorOutput = {
+    ok: false,
+    error: 'Internal server error occurred.',
+  };
+
+  async getAllPodcasts(): Promise<GetAllPodcastsOutput> {
+    try {
+      const podcasts = await this.podcastRepository.find();
+      return {
+        ok: true,
+        podcasts,
+      };
+    } catch (e) {
+      console.log(e);
+      return this.InternalServerErrorOutput;
+    }
   }
 
-  async createPodcast({ title, category }: CreatePodcastDto): Promise<CoreOutput> {
-    const exsistTitle = await this.podcastRepository.findOne({ title })
+  async createPodcast({
+    title,
+    category,
+  }: CreatePodcastInput): Promise<CreatePodcastOutput> {
     try {
-      if (exsistTitle) {
-        return flaseAndError("This Podcast Title Already has taken")
-      }
-      await this.podcastRepository.save(this.podcastRepository.create({
-        title,
-        category,
-        episodes: []
-      }))
+      const newPodcast = this.podcastRepository.create({ title, category });
+      const { id } = await this.podcastRepository.save(newPodcast);
       return {
-        ok: true
-      }
-    } catch (error) {
-      return {
-        ok: false,
-        error: `Can not make a Podcast\n Error on:\n ${error}`
-      }
+        ok: true,
+        id,
+      };
+    } catch (e) {
+      console.log(e);
+      return this.InternalServerErrorOutput;
     }
   }
 
   async getPodcast(id: number): Promise<PodcastOutput> {
     try {
-      const podcast = await this.podcastRepository.findOne(id, {
-        relations: ["episodes"]
-      })
+      const podcast = await this.podcastRepository.findOne(
+        { id },
+        { relations: ['episodes'] },
+      );
       if (!podcast) {
-        return flaseAndError("This Podcast does not exsist")
+        return {
+          ok: false,
+          error: `Podcast with id ${id} not found`,
+        };
       }
       return {
         ok: true,
-        podcast
-      }
-    } catch (error) {
-      return {
-        ok: false,
-        error: `Can not get a Podcast id is ${id} Error on:\n ${error}`
-      }
+        podcast,
+      };
+    } catch (e) {
+      console.log(e);
+      return this.InternalServerErrorOutput;
     }
   }
 
-  async deletePodcast(id: number): Promise<CoreOutput> {
+  async deletePodcast(id: number): Promise<CommonOutput> {
     try {
-      const podcast = await this.podcastRepository.findOne(id)
-      if (!podcast) {
-        return flaseAndError("This Podcast does not Exsist")
+      const { ok, error } = await this.getPodcast(id);
+      if (!ok) {
+        return { ok, error };
       }
-      await this.podcastRepository.delete(id)
-      return {
-        ok: true
-      }
-    } catch (error) {
-      return {
-        ok: false,
-        error: `Could not Delete Podcast id is ${id}\nError on:\n ${error}`
-      }
+      await this.podcastRepository.delete({ id });
+      return { ok };
+    } catch (e) {
+      console.log(e);
+      return this.InternalServerErrorOutput;
     }
   }
 
-  async updatePodcast({ id, ...rest }: UpdatePodcastDto): Promise<CoreOutput> {
+  async updatePodcast({
+    id,
+    payload,
+  }: UpdatePodcastInput): Promise<CommonOutput> {
     try {
-      const podcast = await this.podcastRepository.findOne(id)
-      if (!podcast) {
-        return flaseAndError("This Podcast does not Exsist")
+      const { ok, error, podcast } = await this.getPodcast(id);
+      if (!ok) {
+        return { ok, error };
       }
-      await this.podcastRepository.update(id, { ...rest })
-      return {
-        ok: true
+      if (payload.rating !== null) {
+        if (payload.rating < 1 || payload.rating > 5) {
+          return {
+            ok: false,
+            error: 'Rating must be between 1 and 5.',
+          };
+        }
       }
-    } catch (error) {
-      return {
-        ok: false,
-        error: `Could not update this podcast id is ${id}\nError on:\n${error}`
-      }
+      const updatedPodcast: Podcast = { ...podcast, ...payload };
+      await this.podcastRepository.save(updatedPodcast);
+      return { ok };
+    } catch (e) {
+      console.log(e);
+      return this.InternalServerErrorOutput;
     }
   }
 
   async getEpisodes(podcastId: number): Promise<EpisodesOutput> {
     try {
-      const podcast = await this.podcastRepository.findOne(podcastId, { relations: ["episodes"] })
-      if (!podcast) {
-        return flaseAndError("This Podcast does not exist")
+      const { podcast, ok, error } = await this.getPodcast(podcastId);
+      if (!ok) {
+        return { ok, error };
       }
       return {
         ok: true,
-        episodes: podcast.episodes
+        episodes: podcast.episodes,
+      };
+    } catch (e) {
+      console.log(e);
+      return this.InternalServerErrorOutput;
+    }
+  }
+
+  async getEpisode({
+    podcastId,
+    episodeId,
+  }: EpisodesSearchInput): Promise<GetEpisodeOutput> {
+    try {
+      const { episodes, ok, error } = await this.getEpisodes(podcastId);
+      if (!ok) {
+        return { ok, error };
       }
-    } catch (error) {
+      const episode = episodes.find(episode => episode.id === episodeId);
+      if (!episode) {
+        return {
+          ok: false,
+          error: `Episode with id ${episodeId} not found in podcast with id ${podcastId}`,
+        };
+      }
       return {
-        ok: false,
-        error: `Could not get Episodes from Podcast id is ${podcastId}\nError on:\n${error}`
-      }
+        ok: true,
+        episode,
+      };
+    } catch (e) {
+      console.log(e);
+      return this.InternalServerErrorOutput;
     }
   }
 
@@ -133,43 +175,42 @@ export class PodcastsService {
     podcastId,
     title,
     category,
-  }: CreateEpisodeDto): Promise<CoreOutput> {
+  }: CreateEpisodeInput): Promise<CreateEpisodeOutput> {
     try {
-      const podcast = await this.podcastRepository.findOne(podcastId)
-      if (!podcast) {
-        return flaseAndError("This Podcast does not exsist")
+      const { podcast, ok, error } = await this.getPodcast(podcastId);
+      if (!ok) {
+        return { ok, error };
       }
-      await this.episodeRepository.save(this.episodeRepository.create({
-        podcast,
-        title,
-        category
-      }))
-      return { ok: true };
-    } catch (error) {
+      const newEpisode = this.episodeRepository.create({ title, category });
+      newEpisode.podcast = podcast;
+      const { id } = await this.episodeRepository.save(newEpisode);
       return {
-        ok: false,
-        error: `Could not create a Episode in Podcast id is ${podcastId}\nError on:\n${error}`
-      }
+        ok: true,
+        id,
+      };
+    } catch (e) {
+      console.log(e);
+      return this.InternalServerErrorOutput;
     }
   }
 
-  async deleteEpisode({ podcastId, episodeId }: EpisodesSearchInput): Promise<CoreOutput> {
+  async deleteEpisode({
+    podcastId,
+    episodeId,
+  }: EpisodesSearchInput): Promise<CommonOutput> {
     try {
-      const podcast = await this.podcastRepository.findOne(podcastId)
-      const episode = await this.episodeRepository.findOne(episodeId)
-      if (!podcast) {
-        return flaseAndError("This Podcast does not exist")
+      const { episode, error, ok } = await this.getEpisode({
+        podcastId,
+        episodeId,
+      });
+      if (!ok) {
+        return { ok, error };
       }
-      if (!episode) {
-        return flaseAndError("This Episode does not exist")
-      }
-      await this.episodeRepository.delete(episodeId)
+      await this.episodeRepository.delete({ id: episode.id });
       return { ok: true };
-    } catch (error) {
-      return {
-        ok: false,
-        error: `Could not Delete Episode id is ${episodeId} in Podcast id is ${podcastId}`
-      }
+    } catch (e) {
+      console.log(e);
+      return this.InternalServerErrorOutput;
     }
   }
 
@@ -177,27 +218,21 @@ export class PodcastsService {
     podcastId,
     episodeId,
     ...rest
-  }: UpdateEpisodeDto): Promise<CoreOutput> {
+  }: UpdateEpisodeInput): Promise<CommonOutput> {
     try {
-      const podcast = await this.podcastRepository.findOne(podcastId)
-      const episode = await this.episodeRepository.findOne(episodeId)
-      if (!podcast) {
-        return flaseAndError("This Podcast does not exist")
+      const { episode, ok, error } = await this.getEpisode({
+        podcastId,
+        episodeId,
+      });
+      if (!ok) {
+        return { ok, error };
       }
-      if (!episode) {
-        return flaseAndError("This Episode does not exist")
-      }
-      await this.episodeRepository.update(episodeId, {
-        ...rest
-      })
-      return {
-        ok: true
-      }
-    } catch (error) {
-      return {
-        ok: false,
-        error: `Could not update this Episode id is ${episodeId} in Podcast id is ${podcastId}\nError on:\n${error}`
-      }
+      const updatedEpisode = { ...episode, ...rest };
+      await this.episodeRepository.save(updatedEpisode);
+      return { ok: true };
+    } catch (e) {
+      console.log(e);
+      return this.InternalServerErrorOutput;
     }
   }
 }
