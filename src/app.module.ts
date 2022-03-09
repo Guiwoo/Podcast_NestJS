@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { GraphQLModule } from '@nestjs/graphql';
@@ -7,9 +7,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Podcast } from './podcast/entities/podcast.entity';
 import { Episode } from './podcast/entities/episode.entity';
 import { UserModule } from './user/user.module';
-import { CoreModule } from './core/core.module';
 import { User } from './user/entities/user.entity';
 import { JwtModule } from './jwt/jwt.module';
+import { JwtMiddleware } from './jwt/jwt.middleware';
 
 @Module({
   imports: [
@@ -20,15 +20,24 @@ import { JwtModule } from './jwt/jwt.module';
       logging: true,
       entities: [Podcast, Episode, User],
     }),
-    GraphQLModule.forRoot({ autoSchemaFile: true }),
+    GraphQLModule.forRoot({
+      autoSchemaFile: true,
+      context: ({ req }) => ({ user: req['user'] })
+    }),
     JwtModule.forRoot({
       SECRET_KEY: "HouuuuPodCast"
     }),
     UserModule,
     PodcastsModule,
-    CoreModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(JwtMiddleware).forRoutes({
+      path: "/graphql",
+      method: RequestMethod.POST
+    })
+  }
+}

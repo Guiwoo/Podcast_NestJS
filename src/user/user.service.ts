@@ -5,6 +5,8 @@ import { CreateUserInput, CreateUserOutput } from './dto/createUser.dto';
 import { LoginInput, LoginOutput } from './dto/loginUser.dto';
 import { User } from './entities/user.entity';
 import { JwtService } from 'src/jwt/jwt.service';
+import { UpdateUserInput, UpdateUserOutput } from './dto/updateUser.dto';
+import { MeOutput } from './dto/me.dto';
 
 @Injectable()
 export class UserService {
@@ -18,6 +20,21 @@ export class UserService {
         return {
             ok: false,
             error: text,
+        }
+    }
+
+    async findById(id: number): Promise<MeOutput> {
+        try {
+            const user = await this.userService.findOne({ id })
+            if (!user) {
+                throw Error
+            }
+            return {
+                ok: true,
+                user
+            }
+        } catch (e) {
+            return this.handleError("User Could not Found")
         }
     }
 
@@ -58,6 +75,25 @@ export class UserService {
             }
         } catch (error) {
             return this.handleError("Could not Login with this email and password")
+        }
+    }
+
+    async updateUser(userId: number, { email, password }: UpdateUserInput): Promise<UpdateUserOutput> {
+        try {
+            const user = await this.userService.findOne({ id: userId })
+            if (email) {
+                user.email = email
+            }
+            if (password) {
+                user.password = password
+            }
+            await this.userService.save(user)
+            return {
+                ok: true,
+            }
+        } catch (error) {
+            console.log(error)
+            return this.handleError("Counld not update User with this inforamtions")
         }
     }
 }
