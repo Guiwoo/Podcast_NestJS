@@ -13,7 +13,7 @@ const mockUserRepo = {
 }
 
 const mockJwtRepo = {
-  sign: jest.fn()
+  sign: jest.fn(() => "Signed")
 }
 
 type MockUserRepository<T = any> = Partial<Record<keyof Repository<T>, jest.Mock>>
@@ -21,6 +21,7 @@ type MockUserRepository<T = any> = Partial<Record<keyof Repository<T>, jest.Mock
 describe('UsersService', () => {
   let service: UsersService
   let userRepo: MockUserRepository
+  let jwtService: JwtService
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -34,6 +35,7 @@ describe('UsersService', () => {
     }).compile()
     service = module.get(UsersService)
     userRepo = module.get(getRepositoryToken(User));
+    jwtService = module.get(JwtService)
   })
   it("should defined", () => {
     expect(service).toBeDefined()
@@ -71,7 +73,45 @@ describe('UsersService', () => {
       expect(result).toEqual({ ok: true, error: null })
     })
   })
-  it.todo("login")
+  describe("login", () => {
+    const loginArgs = { email: "", password: "" }
+    it("should raise an error", async () => {
+      userRepo.findOne.mockRejectedValue(new Error())
+      const result = await service.login(loginArgs)
+      expect(result).toEqual({ ok: false, error: "Can't login" })
+    })
+    it("should not found a user", async () => {
+      userRepo.findOne.mockReturnValue(false)
+      const result = await service.login(loginArgs)
+      expect(result).toEqual({
+        ok: false,
+        error: 'User not found',
+      })
+    })
+    it("should return a wrong password", async () => {
+      const mockedUser = {
+        id: 1,
+        checkPassword: jest.fn(() => Promise.resolve(false))
+      }
+      userRepo.findOne.mockResolvedValue(mockedUser)
+      const result = await service.login(loginArgs)
+      expect(result).toEqual({
+        ok: false,
+        error: 'Wrong password',
+      })
+    })
+    it("should login and give token", async () => {
+      const mockedUser = {
+        id: 1,
+        checkPassword: jest.fn(() => Promise.resolve(true))
+      }
+      userRepo.findOne.mockResolvedValue(mockedUser)
+      const result = await service.login(loginArgs)
+      expect(jwtService.sign).toHaveBeenCalledTimes(1)
+      expect(jwtService.sign).toHaveBeenCalledWith(expect.any(Number))
+      expect(result).toEqual({ ok: true, token: "Signed" })
+    })
+  })
   it.todo("findById")
   it.todo("editProfile")
 });
