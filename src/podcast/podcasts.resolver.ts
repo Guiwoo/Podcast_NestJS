@@ -4,7 +4,8 @@ import { Podcast } from './entities/podcast.entity';
 import {
   CreatePodcastInput,
   CreatePodcastOutput,
-} from './dtos/create-podcast.dto'
+} from './dtos/create-podcast.dto';
+import { CoreOutput } from './dtos/output.dto';
 import {
   PodcastSearchInput,
   PodcastOutput,
@@ -19,11 +20,10 @@ import {
   CreateEpisodeOutput,
 } from './dtos/create-episode.dto';
 import { UpdateEpisodeInput } from './dtos/update-episode.dto';
-import { CommonOutput } from 'src/core/dto/common.dto';
 
 @Resolver(of => Podcast)
 export class PodcastsResolver {
-  constructor(private readonly podcastsService: PodcastsService) { }
+  constructor(private readonly podcastsService: PodcastsService) {}
 
   @Query(returns => GetAllPodcastsOutput)
   getAllPodcasts(): Promise<GetAllPodcastsOutput> {
@@ -44,24 +44,24 @@ export class PodcastsResolver {
     return this.podcastsService.getPodcast(podcastSearchInput.id);
   }
 
-  @Mutation(returns => CommonOutput)
+  @Mutation(returns => CoreOutput)
   deletePodcast(
     @Args('input') podcastSearchInput: PodcastSearchInput,
-  ): Promise<CommonOutput> {
+  ): Promise<CoreOutput> {
     return this.podcastsService.deletePodcast(podcastSearchInput.id);
   }
 
-  @Mutation(returns => CommonOutput)
+  @Mutation(returns => CoreOutput)
   updatePodcast(
     @Args('input') updatePodcastInput: UpdatePodcastInput,
-  ): Promise<CommonOutput> {
+  ): Promise<CoreOutput> {
     return this.podcastsService.updatePodcast(updatePodcastInput);
   }
 }
 
 @Resolver(of => Episode)
 export class EpisodeResolver {
-  constructor(private readonly podcastService: PodcastsService) { }
+  constructor(private readonly podcastService: PodcastsService) {}
 
   @Query(returns => EpisodesOutput)
   getEpisodes(
@@ -77,17 +77,17 @@ export class EpisodeResolver {
     return this.podcastService.createEpisode(createEpisodeInput);
   }
 
-  @Mutation(returns => CommonOutput)
+  @Mutation(returns => CoreOutput)
   updateEpisode(
     @Args('input') updateEpisodeInput: UpdateEpisodeInput,
-  ): Promise<CommonOutput> {
+  ): Promise<CoreOutput> {
     return this.podcastService.updateEpisode(updateEpisodeInput);
   }
 
-  @Mutation(returns => CommonOutput)
+  @Mutation(returns => CoreOutput)
   deleteEpisode(
     @Args('input') episodesSearchInput: EpisodesSearchInput,
-  ): Promise<CommonOutput> {
+  ): Promise<CoreOutput> {
     return this.podcastService.deleteEpisode(episodesSearchInput);
   }
 }

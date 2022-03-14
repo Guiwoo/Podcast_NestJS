@@ -11,7 +11,7 @@ import { UpdateEpisodeInput } from './dtos/update-episode.dto';
 import { UpdatePodcastInput } from './dtos/update-podcast.dto';
 import { Episode } from './entities/episode.entity';
 import { Podcast } from './entities/podcast.entity';
-
+import { CoreOutput } from './dtos/output.dto';
 import {
   PodcastOutput,
   EpisodesOutput,
@@ -21,7 +21,6 @@ import {
 } from './dtos/podcast.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CommonOutput } from 'src/core/dto/common.dto';
 
 @Injectable()
 export class PodcastsService {
@@ -30,7 +29,7 @@ export class PodcastsService {
     private readonly podcastRepository: Repository<Podcast>,
     @InjectRepository(Episode)
     private readonly episodeRepository: Repository<Episode>,
-  ) { }
+  ) {}
 
   private readonly InternalServerErrorOutput = {
     ok: false,
@@ -89,7 +88,7 @@ export class PodcastsService {
     }
   }
 
-  async deletePodcast(id: number): Promise<CommonOutput> {
+  async deletePodcast(id: number): Promise<CoreOutput> {
     try {
       const { ok, error } = await this.getPodcast(id);
       if (!ok) {
@@ -106,7 +105,7 @@ export class PodcastsService {
   async updatePodcast({
     id,
     payload,
-  }: UpdatePodcastInput): Promise<CommonOutput> {
+  }: UpdatePodcastInput): Promise<CoreOutput> {
     try {
       const { ok, error, podcast } = await this.getPodcast(id);
       if (!ok) {
@@ -197,7 +196,7 @@ export class PodcastsService {
   async deleteEpisode({
     podcastId,
     episodeId,
-  }: EpisodesSearchInput): Promise<CommonOutput> {
+  }: EpisodesSearchInput): Promise<CoreOutput> {
     try {
       const { episode, error, ok } = await this.getEpisode({
         podcastId,
@@ -218,7 +217,7 @@ export class PodcastsService {
     podcastId,
     episodeId,
     ...rest
-  }: UpdateEpisodeInput): Promise<CommonOutput> {
+  }: UpdateEpisodeInput): Promise<CoreOutput> {
     try {
       const { episode, ok, error } = await this.getEpisode({
         podcastId,

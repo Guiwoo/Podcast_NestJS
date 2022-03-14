@@ -1,5 +1,5 @@
 {
-  "name": "assignment4",
+  "name": "user-account",
   "private": true,
   "version": "1.0.0",
   "description": "Nest TypeScript starter repository",
@@ -26,8 +26,6 @@
     "@nestjs/mapped-types": "0.1.1",
     "@nestjs/platform-express": "^7.5.1",
     "@nestjs/typeorm": "^7.1.5",
-    "@types/bcrypt": "^5.0.0",
-    "@types/jsonwebtoken": "^8.5.8",
     "apollo-server-express": "2.19.1",
     "bcrypt": "5.0.0",
     "class-transformer": "^0.3.1",
@@ -68,16 +66,24 @@
       "json",
       "ts"
     ],
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    },
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.service.ts"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      "node_modules",
+      ".entity.ts",
+      ".constants.ts"
+    ]
   },
   "keywords": []
 }

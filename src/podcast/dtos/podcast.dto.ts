@@ -1,26 +1,26 @@
 import { Field, ObjectType, InputType, Int, PickType } from '@nestjs/graphql';
+import { CoreOutput } from './output.dto';
 import { Podcast } from '../entities/podcast.entity';
 import { IsInt } from 'class-validator';
 import { Episode } from '../entities/episode.entity';
-import { CommonOutput } from 'src/core/dto/common.dto';
 
 @ObjectType()
-export class GetAllPodcastsOutput extends CommonOutput {
+export class GetAllPodcastsOutput extends CoreOutput {
   @Field(type => [Podcast], { nullable: true })
   podcasts?: Podcast[];
 }
 
 @InputType()
-export class PodcastSearchInput extends PickType(Podcast, ['id'], InputType) { }
+export class PodcastSearchInput extends PickType(Podcast, ['id'], InputType) {}
 
 @ObjectType()
-export class PodcastOutput extends CommonOutput {
+export class PodcastOutput extends CoreOutput {
   @Field(type => Podcast, { nullable: true })
   podcast?: Podcast;
 }
 
 @ObjectType()
-export class EpisodesOutput extends CommonOutput {
+export class EpisodesOutput extends CoreOutput {
   @Field(type => [Podcast], { nullable: true })
   episodes?: Episode[];
 }
@@ -36,6 +36,6 @@ export class EpisodesSearchInput {
   episodeId: number;
 }
 
-export class GetEpisodeOutput extends CommonOutput {
+export class GetEpisodeOutput extends CoreOutput {
   episode?: Episode;
 }
