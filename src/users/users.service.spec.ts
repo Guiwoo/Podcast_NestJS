@@ -23,7 +23,8 @@ describe('UsersService', () => {
   let userRepo: MockUserRepository
   let jwtService: JwtService
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    jest.clearAllMocks()
     const module = await Test.createTestingModule({
       providers: [UsersService, {
         provide: getRepositoryToken(User),
@@ -112,6 +113,61 @@ describe('UsersService', () => {
       expect(result).toEqual({ ok: true, token: "Signed" })
     })
   })
-  it.todo("findById")
-  it.todo("editProfile")
+  describe("findById", () => {
+    it("should raise an error", async () => {
+      userRepo.findOneOrFail.mockRejectedValue(Error(''))
+      const result = await service.findById(1)
+      expect(result).toEqual({
+        ok: false,
+        error: 'User Not Found',
+      })
+    })
+    it("should find a user", async () => {
+      userRepo.findOneOrFail.mockResolvedValue({ email: "hoit", role: "Host" })
+      const result = await service.findById(1)
+      expect(result).toEqual({
+        ok: true,
+        user: { email: "hoit", role: "Host" },
+      })
+    })
+  })
+  describe("editProfile", () => {
+    const oldUser = {
+      email: "hoit@com",
+      password: "123"
+    }
+    const editProfileArgs = {
+      email: 'n@n.com', password: "123"
+    };
+    it("should change the User Email", async () => {
+      userRepo.findOne.mockResolvedValue(oldUser)
+      const result = await service.editProfile(1, { email: editProfileArgs.email })
+      expect(userRepo.findOne).toHaveBeenCalledTimes(1)
+      expect(userRepo.save).toHaveBeenCalledWith({
+        email: editProfileArgs.email,
+        password: oldUser.password
+      })
+      expect(userRepo.save).toHaveBeenCalledTimes(1)
+    })
+    it("should change the User Password", async () => {
+      userRepo.findOne.mockResolvedValue(oldUser)
+      const result = await service.editProfile(1, { password: editProfileArgs.password })
+      expect(userRepo.findOne).toHaveBeenCalledTimes(1)
+      expect(userRepo.findOne).toHaveBeenCalledWith(1)
+      expect(userRepo.save).toHaveBeenCalledTimes(1)
+      expect(userRepo.save).toHaveBeenCalledWith({
+        email: oldUser.email,
+        password: editProfileArgs.password
+      })
+      expect(result).toEqual({ ok: true })
+    })
+    it("should raise an error", async () => {
+      userRepo.findOne.mockRejectedValue(Error(" "))
+      const result = await service.editProfile(1, { email: "lala@com" })
+      expect(result).toEqual({
+        ok: false,
+        error: 'Could not update profile',
+      })
+    })
+  })
 });
