@@ -20,13 +20,11 @@ const mockEpisodeRepo = {
 }
 
 type MockPodcastRepository<T = any> = Partial<Record<keyof Repository<T>, jest.Mock>>
-type ArrayMocking<T = any> = Partial<Record<keyof Array<T>, jest.Mock>>
 
 describe('PodcastService', () => {
   let service: PodcastsService
   let podcastRepo: MockPodcastRepository
   let episoderepo: MockPodcastRepository
-  let arrayMock: ArrayMocking
 
   const objEpisode: Episode = {
     id: 1,
@@ -53,7 +51,6 @@ describe('PodcastService', () => {
     updatedAt: new Date,
     episodes: [objEpisode]
   }
-
   const InternalError = {
     ok: false,
     error: 'Internal server error occurred.',
