@@ -29,7 +29,7 @@ export class PodcastsService {
     private readonly podcastRepository: Repository<Podcast>,
     @InjectRepository(Episode)
     private readonly episodeRepository: Repository<Episode>,
-  ) {}
+  ) { }
 
   private readonly InternalServerErrorOutput = {
     ok: false,
