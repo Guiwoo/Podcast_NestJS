@@ -17,7 +17,7 @@ export class UsersService {
     @InjectRepository(User)
     private readonly users: Repository<User>,
     private readonly jwtService: JwtService,
-  ) { }
+  ) {}
 
   async createAccount({
     email,
@@ -73,7 +73,7 @@ export class UsersService {
     } catch (error) {
       return {
         ok: false,
-        error: "Can't login",
+        error,
       };
     }
   }
@@ -98,13 +98,11 @@ export class UsersService {
     { email, password }: EditProfileInput,
   ): Promise<EditProfileOutput> {
     try {
-      const user = await this.users.findOne(userId);
-      if (email) {
-        user.email = email;
-      }
-      if (password) {
-        user.password = password;
-      }
+      const user = await this.users.findOneOrFail(userId);
+
+      if (email) user.email = email;
+      if (password) user.password = password;
+
       await this.users.save(user);
       return {
         ok: true,

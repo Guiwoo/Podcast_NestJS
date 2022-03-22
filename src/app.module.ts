@@ -13,9 +13,9 @@ import { JwtMiddleware } from './jwt/jwt.middleware';
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: 'db.sqlite3',
+      database: process.env.NODE_ENV === "test" ? 'db.test.sqlite3' : 'db.sqlite3',
       synchronize: true,
-      logging: true,
+      logging: process.env.NODE_ENV !== 'test',
       entities: [Podcast, Episode, User],
     }),
     GraphQLModule.forRoot({
