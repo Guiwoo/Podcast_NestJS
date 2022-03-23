@@ -7,6 +7,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { getConnection, Repository } from 'typeorm';
 import { PodcastsService } from 'src/podcast/podcasts.service';
 import { Episode } from 'src/podcast/entities/episode.entity';
+import { User } from 'src/users/entities/user.entity';
+import { UsersService } from 'src/users/users.service';
 
 const QueryPodcastObj = {
   getAllPodcasts: `
@@ -35,6 +37,9 @@ const QueryPodcastObj = {
   updatePodcast: "",
   updateEpisode: "",
 }
+const QueryUserObj = {
+  creataeAcc: ""
+}
 
 const mockedRepository = () => ({
   find: jest.fn(),
@@ -44,11 +49,22 @@ const mockedRepository = () => ({
   delete: jest.fn(),
 })
 
+const utilsTest = {
+  serverErrorExpect: (ok: boolean, error: string) => {
+    expect(ok).toBe(false)
+    expect(error).toEqual(expect.any(String))
+  },
+  trueNullExpect: (ok: boolean, error: string) => {
+    expect(ok).toBe(true)
+    expect(error).toBe(null)
+  }
+}
+
 describe('App (e2e)', () => {
   let app: INestApplication;
   let podService: PodcastsService
-  let episodeRepo: Repository<Episode>
   let podcastRepo: Repository<Podcast>;
+  let userRepo: Repository<User>;
 
   const baseTest = (query: string) => request(app.getHttpServer()).post("/graphql").send({ query })
 
@@ -66,12 +82,13 @@ describe('App (e2e)', () => {
     app = moduleFixture.createNestApplication();
 
     podcastRepo = moduleFixture.get(getRepositoryToken(Podcast))
-    episodeRepo = moduleFixture.get(getRepositoryToken(Episode))
+    userRepo = moduleFixture.get(getRepositoryToken(User))
 
     podService = moduleFixture.get(PodcastsService)
 
     await app.init();
   });
+
   afterEach(async () => {
     jest.clearAllMocks()
     jest.restoreAllMocks()
@@ -87,12 +104,18 @@ describe('App (e2e)', () => {
     const wrongId = 666
     describe('getAllPodcasts', () => {
       it("should show all podcasts list", async () => {
-        return baseTest(QueryPodcastObj.getAllPodcasts).expect(200)
+        return baseTest(QueryPodcastObj.getAllPodcasts).expect(200).expect(res => {
+          const { body: { data: { getAllPodcasts: { ok, error } } } } = res
+          utilsTest.trueNullExpect(ok, error)
+        })
       })
       it("should fail get all podcast list", async () => {
         jest.spyOn(podcastRepo, "find").mockRejectedValue(new Error())
         return baseTest(QueryPodcastObj.getAllPodcasts).expect(200)
-          .expect(res => expect(res.body.data.getAllPodcasts.error).toEqual(expect.any(String)))
+          .expect(res => {
+            const { body: { data: { getAllPodcasts: { ok, error } } } } = res
+            utilsTest.serverErrorExpect(ok, error)
+          })
       })
       jest.clearAllMocks()
     });
@@ -103,7 +126,10 @@ describe('App (e2e)', () => {
       })
       it("should fail create a Podcast", async () => {
         jest.spyOn(podcastRepo, "save").mockRejectedValue(new Error())
-        return baseTest(QueryPodcastObj.createPodcast).expect(200).expect(res => expect(res.body.data.createPodcast.error).toEqual(expect.any(String)))
+        return baseTest(QueryPodcastObj.createPodcast).expect(200).expect(res => {
+          const { body: { data: { createPodcast: { ok, error } } } } = res
+          utilsTest.serverErrorExpect(ok, error)
+        })
       });
     })
     describe('getPodcast', () => {
@@ -127,9 +153,8 @@ describe('App (e2e)', () => {
         jest.spyOn(podcastRepo, "findOne").mockRejectedValue(new Error())
         return baseTest(QueryPodcastObj.getPodcast).expect(200)
           .expect((res) => {
-            const { body: { data: { getPodcast: { ok, error, podcast } } } } = res
-            expect(ok).toBe(false)
-            expect(error).toEqual('Internal server error occurred.')
+            const { body: { data: { getPodcast: { ok, error } } } } = res
+            utilsTest.serverErrorExpect(ok, error)
           })
       })
       it("should not find podcast id ", () => {
@@ -144,8 +169,7 @@ describe('App (e2e)', () => {
         return baseTest(QueryPodcastObj.getPodcast).expect(200)
           .expect(res => {
             const { body: { data: { getPodcast: { ok, error, podcast } } } } = res
-            expect(ok).toBe(true)
-            expect(error).toBe(null)
+            utilsTest.trueNullExpect(ok, error)
             expect(podcast).toEqual(expect.any(Object))
           })
       })
@@ -167,8 +191,7 @@ describe('App (e2e)', () => {
         return baseTest(getVar(podcastId)).expect(200)
           .expect(res => {
             const { body: { data: { createEpisode: { ok, error } } } } = res
-            expect(ok).toBe(false)
-            expect(error).toEqual(expect.any(String))
+            utilsTest.serverErrorExpect(ok, error)
           })
       })
       it("should failed with doesn't exist podcast", () => {
@@ -183,8 +206,7 @@ describe('App (e2e)', () => {
         return baseTest(getVar(podcastId)).expect(200).expect(res => {
           const { body: { data: { createEpisode: { ok, error, id } } } } = res
           episodeId = id
-          expect(ok).toBe(true)
-          expect(error).toBe(null)
+          utilsTest.trueNullExpect(ok, error)
         })
       })
     });
@@ -210,8 +232,7 @@ describe('App (e2e)', () => {
       it("should pass get Episodes", () => {
         return baseTest(getVar(podcastId)).expect(200).expect(res => {
           const { body: { data: { getEpisodes: { ok, error, episodes } } } } = res
-          expect(ok).toBe(true)
-          expect(error).toBe(null)
+          utilsTest.trueNullExpect(ok, error)
           expect(episodes).toEqual(expect.any(Array))
         })
       })
@@ -234,8 +255,7 @@ describe('App (e2e)', () => {
         jest.spyOn(podService, "getPodcast").mockRejectedValue(new Error(""))
         return baseTest(getVar(1, 2)).expect(200).expect(res => {
           const { body: { data: { updatePodcast: { ok, error } } } } = res
-          expect(ok).toBe(false)
-          expect(error).toEqual(expect.any(String))
+          utilsTest.serverErrorExpect(ok, error)
         })
       })
       it("should fail with doesn't exist podcast", () => {
@@ -255,8 +275,7 @@ describe('App (e2e)', () => {
       it("should update the podcast", () => {
         return baseTest(getVar(podcastId, 5)).expect(200).expect(res => {
           const { body: { data: { updatePodcast: { ok, error } } } } = res
-          expect(ok).toBe(true)
-          expect(error).toBe(null)
+          utilsTest.trueNullExpect(ok, error)
         })
       })
     });
@@ -276,8 +295,7 @@ describe('App (e2e)', () => {
         jest.spyOn(podService, "getEpisode").mockRejectedValue(new Error(""))
         return baseTest(getVar(podcastId, episodeId)).expect(200).expect(res => {
           const { body: { data: { updateEpisode: { ok, error } } } } = res
-          expect(ok).toBe(false)
-          expect(error).toEqual(expect.any(String))
+          utilsTest.serverErrorExpect(ok, error)
         })
       })
       it("should fail with wrong podcast and episode", () => {
@@ -290,19 +308,102 @@ describe('App (e2e)', () => {
       it("should update episode", () => {
         return baseTest(getVar(podcastId, episodeId)).expect(200).expect(res => {
           const { body: { data: { updateEpisode: { ok, error } } } } = res
-          expect(ok).toBe(true)
-          expect(error).toBe(null)
+          utilsTest.trueNullExpect(ok, error)
         })
       })
     });
-    it.todo('deleteEpisode');
-    it.todo('deletePodcast');
+    describe('deleteEpisode', () => {
+      const getVar = (podcastId, episodeId) => `mutation{
+        deleteEpisode(input:{
+          podcastId:${podcastId}
+          episodeId:${episodeId}
+        }){
+          ok
+          error
+        }
+      }`
+      it("should fail sever error", () => {
+        jest.spyOn(podService, "getEpisode").mockRejectedValue(new Error(""))
+        return baseTest(getVar(podcastId, episodeId)).expect(200).expect(res => {
+          const { body: { data: { deleteEpisode: { ok, error } } } } = res
+          utilsTest.serverErrorExpect(ok, error)
+        })
+      })
+      it("should fail with doesn't exsist podcast or episode", () => {
+        return baseTest(getVar(wrongId, wrongId)).expect(200).expect(res => {
+          const { body: { data: { deleteEpisode: { ok, error } } } } = res
+          expect(ok).toBe(false)
+          expect(error).toEqual(expect.any(String))
+        })
+      })
+      it("should delete a episode", () => {
+        return baseTest(getVar(podcastId, episodeId)).expect(200).expect(res => {
+          const { body: { data: { deleteEpisode: { ok, error } } } } = res
+          utilsTest.trueNullExpect(ok, error)
+        })
+      })
+    });
+    describe('deletePodcast', () => {
+      const getVar = (podcastId) => `mutation{
+        deletePodcast(input:{
+          id:${podcastId}
+        }){
+          ok
+          error
+        }
+      }`
+      it("should fail sever error", () => {
+        jest.spyOn(podService, "getPodcast").mockRejectedValue(new Error(""))
+        return baseTest(getVar(podcastId)).expect(200).expect(res => {
+          const { body: { data: { deletePodcast: { ok, error } } } } = res
+          utilsTest.serverErrorExpect(ok, error)
+        })
+      })
+      it("should fail with doesn't exsist podcast or episode", () => {
+        return baseTest(getVar(wrongId)).expect(200).expect(res => {
+          const { body: { data: { deletePodcast: { ok, error } } } } = res
+          expect(ok).toBe(false)
+          expect(error).toEqual(expect.any(String))
+        })
+      })
+      it("should delete a podcast", () => {
+        return baseTest(getVar(podcastId)).expect(200).expect(res => {
+          const { body: { data: { deletePodcast: { ok, error } } } } = res
+          utilsTest.trueNullExpect(ok, error)
+        })
+      })
+    });
   });
   describe('Users Resolver', () => {
+    const uInfo = {
+      email: "test@test.com",
+      password: "123",
+      role: "HOST"
+    }
+    describe('createAccount', () => {
+      const getVar = (email, password, role) => `mutation{
+        createAccount(input:{
+          email:"${email}"
+          password:"${password}"
+          role:${role}
+        }){
+          ok
+          error
+        }
+      }`
+      it("fail with serverError", () => {
+        jest.spyOn(userRepo, "findOne").mockRejectedValue(new Error(""))
+        return baseTest(getVar(uInfo.email, uInfo.password, uInfo.role)).expect(200).expect(res => {
+          const { body: { data: { createAccount: { ok, error } } } } = res
+          utilsTest.serverErrorExpect(ok, error)
+        })
+      })
+      it.todo("create an account")
+      it.todo("fail with existing user email")
+    });
+    it.todo('login');
     it.todo('me');
     it.todo('seeProfile');
-    it.todo('createAccount');
-    it.todo('login');
     it.todo('editProfile');
   });
 });
