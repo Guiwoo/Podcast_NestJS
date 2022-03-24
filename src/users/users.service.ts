@@ -41,13 +41,13 @@ export class UsersService {
         error: null,
       };
     } catch (e) {
-      console.log(e)
       return {
         ok: false,
         error: 'Could not create account',
       };
     }
   }
+
   async login({ email, password }: LoginInput): Promise<LoginOutput> {
     try {
       const user = await this.users.findOne(

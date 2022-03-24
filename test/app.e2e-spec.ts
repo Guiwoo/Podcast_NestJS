@@ -8,7 +8,8 @@ import { getConnection, Repository } from 'typeorm';
 import { PodcastsService } from 'src/podcast/podcasts.service';
 import { Episode } from 'src/podcast/entities/episode.entity';
 import { User } from 'src/users/entities/user.entity';
-import { UsersService } from 'src/users/users.service';
+import { getVariableValues } from 'graphql/execution/values';
+
 
 const QueryPodcastObj = {
   getAllPodcasts: `
@@ -32,13 +33,6 @@ const QueryPodcastObj = {
     }
   }`,
   getPodcast: ``,
-  createEpisode: "",
-  getEpisodes: "",
-  updatePodcast: "",
-  updateEpisode: "",
-}
-const QueryUserObj = {
-  creataeAcc: ""
 }
 
 const mockedRepository = () => ({
@@ -66,7 +60,10 @@ describe('App (e2e)', () => {
   let podcastRepo: Repository<Podcast>;
   let userRepo: Repository<User>;
 
-  const baseTest = (query: string) => request(app.getHttpServer()).post("/graphql").send({ query })
+  const baseStructure = () => request(app.getHttpServer()).post("/graphql")
+  const baseTest = (query: string) => baseStructure().send({ query })
+  const privateTest = (query: string, token: string) => baseStructure().set("x-jwt", token).send({ query })
+  const wrongId = 666
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
@@ -93,6 +90,7 @@ describe('App (e2e)', () => {
     jest.clearAllMocks()
     jest.restoreAllMocks()
   })
+
   afterAll(async () => {
     await getConnection().dropDatabase()
     app.close()
@@ -101,7 +99,6 @@ describe('App (e2e)', () => {
   describe('Podcasts Resolver', () => {
     let podcastId: number
     let episodeId: number
-    const wrongId = 666
     describe('getAllPodcasts', () => {
       it("should show all podcasts list", async () => {
         return baseTest(QueryPodcastObj.getAllPodcasts).expect(200).expect(res => {
@@ -175,7 +172,7 @@ describe('App (e2e)', () => {
       })
     });
     describe('createEpisode', () => {
-      const getVar = (podcastId) => QueryPodcastObj.createEpisode = `mutation{
+      const getVar = (podcastId) => `mutation{
         createEpisode(input:{
           title:"Um?"
           category:"holy"
@@ -374,18 +371,25 @@ describe('App (e2e)', () => {
       })
     });
   });
+
   describe('Users Resolver', () => {
+    const wrongInfo = {
+      email: "hoit@hoit.com",
+      password: "666"
+    }
     const uInfo = {
       email: "test@test.com",
       password: "123",
-      role: "HOST"
     }
+    let gotToken: string
+    let userId: number
+
     describe('createAccount', () => {
-      const getVar = (email, password, role) => `mutation{
+      const getVar = (email: string, password: string) => `mutation{
         createAccount(input:{
           email:"${email}"
           password:"${password}"
-          role:${role}
+          role:Host
         }){
           ok
           error
@@ -393,17 +397,123 @@ describe('App (e2e)', () => {
       }`
       it("fail with serverError", () => {
         jest.spyOn(userRepo, "findOne").mockRejectedValue(new Error(""))
-        return baseTest(getVar(uInfo.email, uInfo.password, uInfo.role)).expect(200).expect(res => {
+        return baseTest(getVar(uInfo.email, uInfo.password)).expect(200).expect(res => {
           const { body: { data: { createAccount: { ok, error } } } } = res
           utilsTest.serverErrorExpect(ok, error)
         })
       })
-      it.todo("create an account")
-      it.todo("fail with existing user email")
+      it("create an account", () => {
+        return baseTest(getVar(uInfo.email, uInfo.password)).expect(200).expect((res) => {
+          const { body: { data: { createAccount: { ok, error } } } } = res
+          utilsTest.trueNullExpect(ok, error)
+        })
+      })
+      it("fail with existing user email", () => {
+        return baseTest(getVar(uInfo.email, uInfo.password)).expect(200).expect((res) => {
+          const { body: { data: { createAccount: { ok, error } } } } = res
+          expect(ok).toBe(false)
+          expect(error).toBe(`There is a user with that email already`)
+        })
+      })
     });
-    it.todo('login');
-    it.todo('me');
-    it.todo('seeProfile');
+
+    describe('login', () => {
+      const getVar = (email: string, password: string) => `mutation{
+        login(input:{
+          email:"${email}"
+          password:"${password}"
+        }){
+          ok
+          error
+          token
+      }
+      }`
+      it("shoudl fail with error", () => {
+        jest.spyOn(userRepo, "findOne").mockRejectedValue(new Error(""))
+        return baseTest(getVar(uInfo.email, uInfo.password)).expect(200)
+          .expect(res => {
+            const { body: { data: { login: { ok, error } } } } = res
+            expect(ok).toBe(false)
+            expect(res.body.errors).toEqual(expect.any(Array))
+          })
+      })
+      it("should fail with user not found", () => {
+        return baseTest(getVar(wrongInfo.email, wrongInfo.password)).expect(200)
+          .expect((res) => {
+            const { body: { data: { login: { ok, error } } } } = res
+            expect(ok).toBe(false)
+            expect(error).toBe("User not found")
+          })
+      })
+      it("should fail with wrong password", () => {
+        return baseTest(getVar(uInfo.email, wrongInfo.password)).expect(200)
+          .expect(res => {
+            const { body: { data: { login: { ok, error } } } } = res
+            expect(ok).toBe(false)
+            expect(error).toBe("Wrong password")
+          })
+      })
+      it("should logged in and return token!", () => {
+        return baseTest(getVar(uInfo.email, uInfo.password)).expect(200)
+          .expect(res => {
+            const { body: { data: { login: { ok, error, token } } } } = res
+            gotToken = token
+            expect(ok).toBe(true)
+            expect(error).toBe(null)
+            expect(token).toEqual(expect.any(String))
+          })
+      })
+    });
+    describe('me', () => {
+      const getVar = () => `{
+        me{
+          email
+        }
+      }`
+      it("logged in User", () => {
+        return privateTest(getVar(), gotToken).expect(200)
+          .expect(res => {
+            const { body: { data: { me: { email } } } } = res
+            expect(email).toBe(uInfo.email)
+          })
+      })
+      it("return error with didn't login", () => {
+        return privateTest(getVar(), "hoithoithoit").expect(200).expect(res => {
+          const { body: { errors } } = res
+          expect(errors[0].message).toBe("Forbidden resource")
+        })
+      })
+    });
+    describe('seeProfile', () => {
+      const getVar = (userId: number) => `{
+        seeProfile(userId:${userId}){
+          ok
+          error
+          user{
+            email
+          }
+        }
+      }`
+      beforeAll(async () => {
+        const [user] = await userRepo.find()
+        userId = user.id
+      })
+      it("should return User Not Found", () => {
+        return privateTest(getVar(wrongId), gotToken).expect(200).expect(res => {
+          const { body: { data: { seeProfile: { ok, error, user } } } } = res
+          expect(ok).toBe(false)
+          expect(error).toBe("User Not Found")
+          expect(user).toBe(null)
+        })
+      })
+      it("should return Found user and return", () => {
+        return privateTest(getVar(userId), gotToken).expect(200).expect(res => {
+          const { body: { data: { seeProfile: { ok, error, user } } } } = res
+          expect(ok).toBe(true)
+          expect(user.email).toBe(uInfo.email)
+        })
+      })
+    });
     it.todo('editProfile');
   });
 });
