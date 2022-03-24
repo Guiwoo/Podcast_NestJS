@@ -381,6 +381,15 @@ describe('App (e2e)', () => {
       email: "test@test.com",
       password: "123",
     }
+    const getVarSeeProfile = (userId: number) => `{
+      seeProfile(userId:${userId}){
+        ok
+        error
+        user{
+          email
+        }
+      }
+    }`
     let gotToken: string
     let userId: number
 
@@ -416,7 +425,6 @@ describe('App (e2e)', () => {
         })
       })
     });
-
     describe('login', () => {
       const getVar = (email: string, password: string) => `mutation{
         login(input:{
@@ -485,35 +493,48 @@ describe('App (e2e)', () => {
       })
     });
     describe('seeProfile', () => {
-      const getVar = (userId: number) => `{
-        seeProfile(userId:${userId}){
-          ok
-          error
-          user{
-            email
-          }
-        }
-      }`
       beforeAll(async () => {
         const [user] = await userRepo.find()
         userId = user.id
       })
       it("should return User Not Found", () => {
-        return privateTest(getVar(wrongId), gotToken).expect(200).expect(res => {
+        return privateTest(getVarSeeProfile(wrongId), gotToken).expect(200).expect(res => {
           const { body: { data: { seeProfile: { ok, error, user } } } } = res
           expect(ok).toBe(false)
           expect(error).toBe("User Not Found")
           expect(user).toBe(null)
         })
       })
-      it("should return Found user and return", () => {
-        return privateTest(getVar(userId), gotToken).expect(200).expect(res => {
+      it("should return Found user", () => {
+        return privateTest(getVarSeeProfile(userId), gotToken).expect(200).expect(res => {
           const { body: { data: { seeProfile: { ok, error, user } } } } = res
           expect(ok).toBe(true)
           expect(user.email).toBe(uInfo.email)
         })
       })
     });
-    it.todo('editProfile');
+    describe('editProfile', () => {
+      const getVar = (email) => `mutation{
+        editProfile(input:{
+          email:"${email}"
+        }){
+          ok
+          error
+        }
+      }`
+      it("should update profile", () => {
+        return privateTest(getVar(wrongInfo.email), gotToken).expect(200).expect(res => {
+          const { body: { data: { editProfile: { ok } } } } = res
+          expect(ok).toBe(true)
+        })
+      })
+      it("should return Found user ", () => {
+        return privateTest(getVarSeeProfile(userId), gotToken).expect(200).expect(res => {
+          const { body: { data: { seeProfile: { ok, user } } } } = res
+          expect(ok).toBe(true)
+          expect(user.email).toBe(wrongInfo.email)
+        })
+      })
+    });
   });
 });
