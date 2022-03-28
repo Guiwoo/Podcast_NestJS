@@ -1,540 +1,843 @@
-import { Test } from '@nestjs/testing';
-import { AppModule } from './../src/app.module';
-import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
-import { Podcast } from 'src/podcast/entities/podcast.entity';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { getConnection, Repository } from 'typeorm';
-import { PodcastsService } from 'src/podcast/podcasts.service';
-import { Episode } from 'src/podcast/entities/episode.entity';
-import { User } from 'src/users/entities/user.entity';
-import { getVariableValues } from 'graphql/execution/values';
+import { INestApplication } from "@nestjs/common";
+import { Test } from "@nestjs/testing";
+import { getRepositoryToken } from "@nestjs/typeorm";
+import * as request from "supertest";
+import { getConnection, Repository } from "typeorm";
+import { Podcast } from "src/podcast/entities/podcast.entity";
+import { AppModule } from "./../src/app.module";
+import { Episode } from "src/podcast/entities/episode.entity";
+import { send } from "process";
+import { User } from "src/users/entities/user.entity";
 
+const GRAPHQL_ENDPOINT = "/graphql";
 
-const QueryPodcastObj = {
-  getAllPodcasts: `
-  {
-    getAllPodcasts{
-      ok
-      error
-      podcasts{
-        id
-      }
-    }
-  }
-  `,
-  createPodcast: `mutation{
-    createPodcast(input:{
-      title:"test",
-      category:"hoit"
-    }){
-      ok
-      error
-    }
-  }`,
-  getPodcast: ``,
-}
+const testPodcast = {
+  title: "test podcast",
+  category: "test"
+};
 
-const mockedRepository = () => ({
-  find: jest.fn(),
-  create: jest.fn(),
-  save: jest.fn(),
-  findOne: jest.fn(),
-  delete: jest.fn(),
-})
+const testEpisode = {
+  title: "test episode",
+  category: "test"
+};
 
-const utilsTest = {
-  serverErrorExpect: (ok: boolean, error: string) => {
-    expect(ok).toBe(false)
-    expect(error).toEqual(expect.any(String))
-  },
-  trueNullExpect: (ok: boolean, error: string) => {
-    expect(ok).toBe(true)
-    expect(error).toBe(null)
-  }
-}
+const testUser = {
+  email: "flynn@flynnpark.dev",
+  password: "flynndev"
+};
 
-describe('App (e2e)', () => {
+describe("App (e2e)", () => {
   let app: INestApplication;
-  let podService: PodcastsService
-  let podcastRepo: Repository<Podcast>;
-  let userRepo: Repository<User>;
+  let podcastsRepository: Repository<Podcast>;
+  let episodesRepository: Repository<Episode>;
+  let usersRepository: Repository<User>;
+  let jwtToken: string;
 
-  const baseStructure = () => request(app.getHttpServer()).post("/graphql")
-  const baseTest = (query: string) => baseStructure().send({ query })
-  const privateTest = (query: string, token: string) => baseStructure().set("x-jwt", token).send({ query })
-  const wrongId = 666
+  const baseTest = () => request(app.getHttpServer()).post(GRAPHQL_ENDPOINT);
+  const publicTest = (query: string) => baseTest().send({ query });
+  const privateTest = (query: string) =>
+    baseTest().set("X-JWT", jwtToken).send({ query });
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
-      imports: [AppModule],
-      providers: [PodcastsService, {
-        provide: getRepositoryToken(Podcast),
-        useValue: mockedRepository()
-      }, {
-          provide: getRepositoryToken(Episode),
-          useValue: mockedRepository()
-        }]
+      imports: [AppModule]
     }).compile();
+
     app = moduleFixture.createNestApplication();
-
-    podcastRepo = moduleFixture.get(getRepositoryToken(Podcast))
-    userRepo = moduleFixture.get(getRepositoryToken(User))
-
-    podService = moduleFixture.get(PodcastsService)
-
+    podcastsRepository = moduleFixture.get<Repository<Podcast>>(
+      getRepositoryToken(Podcast)
+    );
+    episodesRepository = moduleFixture.get<Repository<Episode>>(
+      getRepositoryToken(Episode)
+    );
+    usersRepository = moduleFixture.get<Repository<User>>(
+      getRepositoryToken(User)
+    );
     await app.init();
   });
 
-  afterEach(async () => {
-    jest.clearAllMocks()
-    jest.restoreAllMocks()
-  })
-
   afterAll(async () => {
-    await getConnection().dropDatabase()
-    app.close()
-  })
-
-  describe('Podcasts Resolver', () => {
-    let podcastId: number
-    let episodeId: number
-    describe('getAllPodcasts', () => {
-      it("should show all podcasts list", async () => {
-        return baseTest(QueryPodcastObj.getAllPodcasts).expect(200).expect(res => {
-          const { body: { data: { getAllPodcasts: { ok, error } } } } = res
-          utilsTest.trueNullExpect(ok, error)
-        })
-      })
-      it("should fail get all podcast list", async () => {
-        jest.spyOn(podcastRepo, "find").mockRejectedValue(new Error())
-        return baseTest(QueryPodcastObj.getAllPodcasts).expect(200)
-          .expect(res => {
-            const { body: { data: { getAllPodcasts: { ok, error } } } } = res
-            utilsTest.serverErrorExpect(ok, error)
-          })
-      })
-      jest.clearAllMocks()
-    });
-    describe('createPodcast', () => {
-      it("should create a Podcast", async () => {
-        return baseTest(QueryPodcastObj.createPodcast).expect(200)
-          .expect(res => expect(res.body.data.createPodcast.ok).toBe(true))
-      })
-      it("should fail create a Podcast", async () => {
-        jest.spyOn(podcastRepo, "save").mockRejectedValue(new Error())
-        return baseTest(QueryPodcastObj.createPodcast).expect(200).expect(res => {
-          const { body: { data: { createPodcast: { ok, error } } } } = res
-          utilsTest.serverErrorExpect(ok, error)
-        })
-      });
-    })
-    describe('getPodcast', () => {
-      const getOneVar = (podcastId) => `{
-        getPodcast(input:{
-          id:${podcastId}
-        }){
-          ok
-          error
-          podcast{
-            id
-          }
-        }
-      }`
-      beforeAll(async () => {
-        const [podcast] = await podcastRepo.find()
-        podcastId = podcast.id
-        QueryPodcastObj.getPodcast = getOneVar(podcastId)
-      })
-      it("should failed with error ", () => {
-        jest.spyOn(podcastRepo, "findOne").mockRejectedValue(new Error())
-        return baseTest(QueryPodcastObj.getPodcast).expect(200)
-          .expect((res) => {
-            const { body: { data: { getPodcast: { ok, error } } } } = res
-            utilsTest.serverErrorExpect(ok, error)
-          })
-      })
-      it("should not find podcast id ", () => {
-        return baseTest(getOneVar(wrongId)).expect(200)
-          .expect((res) => {
-            const { body: { data: { getPodcast: { ok, error } } } } = res
-            expect(ok).toBe(false)
-            expect(error).toEqual(`Podcast with id ${wrongId} not found`)
-          })
-      })
-      it("should return a podcast with true ", () => {
-        return baseTest(QueryPodcastObj.getPodcast).expect(200)
-          .expect(res => {
-            const { body: { data: { getPodcast: { ok, error, podcast } } } } = res
-            utilsTest.trueNullExpect(ok, error)
-            expect(podcast).toEqual(expect.any(Object))
-          })
-      })
-    });
-    describe('createEpisode', () => {
-      const getVar = (podcastId) => `mutation{
-        createEpisode(input:{
-          title:"Um?"
-          category:"holy"
-          podcastId:${podcastId}
-        }){
-          ok
-          error
-          id
-        }
-      }`
-      it("should fail with an error", () => {
-        jest.spyOn(podService, "getPodcast").mockRejectedValue(new Error(""))
-        return baseTest(getVar(podcastId)).expect(200)
-          .expect(res => {
-            const { body: { data: { createEpisode: { ok, error } } } } = res
-            utilsTest.serverErrorExpect(ok, error)
-          })
-      })
-      it("should failed with doesn't exist podcast", () => {
-        return baseTest(getVar(wrongId)).expect(200)
-          .expect(res => {
-            const { body: { data: { createEpisode: { ok, error } } } } = res
-            expect(ok).toBe(false)
-            expect(error).toEqual(`Podcast with id ${wrongId} not found`)
-          })
-      })
-      it("should pass create episode", () => {
-        return baseTest(getVar(podcastId)).expect(200).expect(res => {
-          const { body: { data: { createEpisode: { ok, error, id } } } } = res
-          episodeId = id
-          utilsTest.trueNullExpect(ok, error)
-        })
-      })
-    });
-    describe('getEpisodes', () => {
-      const getVar = (podcastId) => `{
-        getEpisodes(input:{
-          id:${podcastId}
-        }){
-          ok
-          error
-          episodes{
-            id
-          }
-        }
-      }`
-      it("should failed with doesn't exist podcast", () => {
-        return baseTest(getVar(wrongId)).expect(200).expect(res => {
-          const { body: { data: { getEpisodes: { ok, error } } } } = res
-          expect(ok).toBe(false)
-          expect(error).toBe(`Podcast with id ${wrongId} not found`)
-        })
-      })
-      it("should pass get Episodes", () => {
-        return baseTest(getVar(podcastId)).expect(200).expect(res => {
-          const { body: { data: { getEpisodes: { ok, error, episodes } } } } = res
-          utilsTest.trueNullExpect(ok, error)
-          expect(episodes).toEqual(expect.any(Array))
-        })
-      })
-    });
-    describe('updatePodcast', () => {
-      const getVar = (podcastId, rating) => `mutation{
-        updatePodcast(input:{
-          id:${podcastId}
-          payload:{
-            title:"HolyWak"
-            category:"Testing"
-            rating:${rating}
-          }
-        }){
-          ok
-          error
-        }
-      }`
-      it("should fail with server Error", () => {
-        jest.spyOn(podService, "getPodcast").mockRejectedValue(new Error(""))
-        return baseTest(getVar(1, 2)).expect(200).expect(res => {
-          const { body: { data: { updatePodcast: { ok, error } } } } = res
-          utilsTest.serverErrorExpect(ok, error)
-        })
-      })
-      it("should fail with doesn't exist podcast", () => {
-        return baseTest(getVar(wrongId, 2)).expect(200).expect(res => {
-          const { body: { data: { updatePodcast: { ok, error } } } } = res
-          expect(ok).toBe(false)
-          expect(error).toBe(`Podcast with id ${wrongId} not found`)
-        })
-      })
-      it("should fail with over rating", () => {
-        return baseTest(getVar(podcastId, 6)).expect(200).expect(res => {
-          const { body: { data: { updatePodcast: { ok, error } } } } = res
-          expect(ok).toBe(false)
-          expect(error).toBe('Rating must be between 1 and 5.')
-        })
-      })
-      it("should update the podcast", () => {
-        return baseTest(getVar(podcastId, 5)).expect(200).expect(res => {
-          const { body: { data: { updatePodcast: { ok, error } } } } = res
-          utilsTest.trueNullExpect(ok, error)
-        })
-      })
-    });
-    describe('updateEpisode', () => {
-      const getVar = (podcastId, episodeId) => `mutation{
-        updateEpisode(input:{
-          title:"HolyWak"
-          category:"Houuuu"
-          podcastId:${podcastId}
-          episodeId:${episodeId}
-        }){
-          ok
-          error
-        }
-      }`
-      it("should fail with serever Error", () => {
-        jest.spyOn(podService, "getEpisode").mockRejectedValue(new Error(""))
-        return baseTest(getVar(podcastId, episodeId)).expect(200).expect(res => {
-          const { body: { data: { updateEpisode: { ok, error } } } } = res
-          utilsTest.serverErrorExpect(ok, error)
-        })
-      })
-      it("should fail with wrong podcast and episode", () => {
-        return baseTest(getVar(wrongId, wrongId)).expect(200).expect(res => {
-          const { body: { data: { updateEpisode: { ok, error } } } } = res
-          expect(ok).toBe(false)
-          expect(error).toBe(`Podcast with id ${wrongId} not found`)
-        })
-      })
-      it("should update episode", () => {
-        return baseTest(getVar(podcastId, episodeId)).expect(200).expect(res => {
-          const { body: { data: { updateEpisode: { ok, error } } } } = res
-          utilsTest.trueNullExpect(ok, error)
-        })
-      })
-    });
-    describe('deleteEpisode', () => {
-      const getVar = (podcastId, episodeId) => `mutation{
-        deleteEpisode(input:{
-          podcastId:${podcastId}
-          episodeId:${episodeId}
-        }){
-          ok
-          error
-        }
-      }`
-      it("should fail sever error", () => {
-        jest.spyOn(podService, "getEpisode").mockRejectedValue(new Error(""))
-        return baseTest(getVar(podcastId, episodeId)).expect(200).expect(res => {
-          const { body: { data: { deleteEpisode: { ok, error } } } } = res
-          utilsTest.serverErrorExpect(ok, error)
-        })
-      })
-      it("should fail with doesn't exsist podcast or episode", () => {
-        return baseTest(getVar(wrongId, wrongId)).expect(200).expect(res => {
-          const { body: { data: { deleteEpisode: { ok, error } } } } = res
-          expect(ok).toBe(false)
-          expect(error).toEqual(expect.any(String))
-        })
-      })
-      it("should delete a episode", () => {
-        return baseTest(getVar(podcastId, episodeId)).expect(200).expect(res => {
-          const { body: { data: { deleteEpisode: { ok, error } } } } = res
-          utilsTest.trueNullExpect(ok, error)
-        })
-      })
-    });
-    describe('deletePodcast', () => {
-      const getVar = (podcastId) => `mutation{
-        deletePodcast(input:{
-          id:${podcastId}
-        }){
-          ok
-          error
-        }
-      }`
-      it("should fail sever error", () => {
-        jest.spyOn(podService, "getPodcast").mockRejectedValue(new Error(""))
-        return baseTest(getVar(podcastId)).expect(200).expect(res => {
-          const { body: { data: { deletePodcast: { ok, error } } } } = res
-          utilsTest.serverErrorExpect(ok, error)
-        })
-      })
-      it("should fail with doesn't exsist podcast or episode", () => {
-        return baseTest(getVar(wrongId)).expect(200).expect(res => {
-          const { body: { data: { deletePodcast: { ok, error } } } } = res
-          expect(ok).toBe(false)
-          expect(error).toEqual(expect.any(String))
-        })
-      })
-      it("should delete a podcast", () => {
-        return baseTest(getVar(podcastId)).expect(200).expect(res => {
-          const { body: { data: { deletePodcast: { ok, error } } } } = res
-          utilsTest.trueNullExpect(ok, error)
-        })
-      })
-    });
+    await getConnection().dropDatabase();
+    app.close();
   });
 
-  describe('Users Resolver', () => {
-    const wrongInfo = {
-      email: "hoit@hoit.com",
-      password: "666"
-    }
-    const uInfo = {
-      email: "test@test.com",
-      password: "123",
-    }
-    const getVarSeeProfile = (userId: number) => `{
-      seeProfile(userId:${userId}){
-        ok
-        error
-        user{
-          email
-        }
-      }
-    }`
-    let gotToken: string
-    let userId: number
-
-    describe('createAccount', () => {
-      const getVar = (email: string, password: string) => `mutation{
-        createAccount(input:{
-          email:"${email}"
-          password:"${password}"
-          role:Host
-        }){
-          ok
-          error
-        }
-      }`
-      it("fail with serverError", () => {
-        jest.spyOn(userRepo, "findOne").mockRejectedValue(new Error(""))
-        return baseTest(getVar(uInfo.email, uInfo.password)).expect(200).expect(res => {
-          const { body: { data: { createAccount: { ok, error } } } } = res
-          utilsTest.serverErrorExpect(ok, error)
-        })
-      })
-      it("create an account", () => {
-        return baseTest(getVar(uInfo.email, uInfo.password)).expect(200).expect((res) => {
-          const { body: { data: { createAccount: { ok, error } } } } = res
-          utilsTest.trueNullExpect(ok, error)
-        })
-      })
-      it("fail with existing user email", () => {
-        return baseTest(getVar(uInfo.email, uInfo.password)).expect(200).expect((res) => {
-          const { body: { data: { createAccount: { ok, error } } } } = res
-          expect(ok).toBe(false)
-          expect(error).toBe(`There is a user with that email already`)
-        })
-      })
-    });
-    describe('login', () => {
-      const getVar = (email: string, password: string) => `mutation{
-        login(input:{
-          email:"${email}"
-          password:"${password}"
-        }){
-          ok
-          error
-          token
-      }
-      }`
-      it("shoudl fail with error", () => {
-        jest.spyOn(userRepo, "findOne").mockRejectedValue(new Error(""))
-        return baseTest(getVar(uInfo.email, uInfo.password)).expect(200)
-          .expect(res => {
-            const { body: { data: { login: { ok, error } } } } = res
-            expect(ok).toBe(false)
-            expect(res.body.errors).toEqual(expect.any(Array))
-          })
-      })
-      it("should fail with user not found", () => {
-        return baseTest(getVar(wrongInfo.email, wrongInfo.password)).expect(200)
+  describe("Podcasts Resolver", () => {
+    describe("createPodcast", () => {
+      it("should create a new podcast", () =>
+        publicTest(`
+            mutation {
+              createPodcast(input: {
+                title: "${testPodcast.title}",
+                category: "${testPodcast.category}",
+              }) {
+                ok
+                id
+              }
+            }
+          `)
+          .expect(200)
           .expect((res) => {
-            const { body: { data: { login: { ok, error } } } } = res
-            expect(ok).toBe(false)
-            expect(error).toBe("User not found")
-          })
-      })
-      it("should fail with wrong password", () => {
-        return baseTest(getVar(uInfo.email, wrongInfo.password)).expect(200)
-          .expect(res => {
-            const { body: { data: { login: { ok, error } } } } = res
-            expect(ok).toBe(false)
-            expect(error).toBe("Wrong password")
-          })
-      })
-      it("should logged in and return token!", () => {
-        return baseTest(getVar(uInfo.email, uInfo.password)).expect(200)
-          .expect(res => {
-            const { body: { data: { login: { ok, error, token } } } } = res
-            gotToken = token
-            expect(ok).toBe(true)
-            expect(error).toBe(null)
-            expect(token).toEqual(expect.any(String))
-          })
-      })
+            expect(res.body.data.createPodcast.ok).toBe(true);
+            expect(res.body.data.createPodcast.id).toBe(1);
+          }));
     });
-    describe('me', () => {
-      const getVar = () => `{
-        me{
-          email
-        }
-      }`
-      it("logged in User", () => {
-        return privateTest(getVar(), gotToken).expect(200)
-          .expect(res => {
-            const { body: { data: { me: { email } } } } = res
-            expect(email).toBe(uInfo.email)
-          })
-      })
-      it("return error with didn't login", () => {
-        return privateTest(getVar(), "hoithoithoit").expect(200).expect(res => {
-          const { body: { errors } } = res
-          expect(errors[0].message).toBe("Forbidden resource")
-        })
-      })
-    });
-    describe('seeProfile', () => {
+    describe("getAllPodcasts", () => {
+      let podcastIds: number[];
       beforeAll(async () => {
-        const [user] = await userRepo.find()
-        userId = user.id
-      })
-      it("should return User Not Found", () => {
-        return privateTest(getVarSeeProfile(wrongId), gotToken).expect(200).expect(res => {
-          const { body: { data: { seeProfile: { ok, error, user } } } } = res
-          expect(ok).toBe(false)
-          expect(error).toBe("User Not Found")
-          expect(user).toBe(null)
-        })
-      })
-      it("should return Found user", () => {
-        return privateTest(getVarSeeProfile(userId), gotToken).expect(200).expect(res => {
-          const { body: { data: { seeProfile: { ok, error, user } } } } = res
-          expect(ok).toBe(true)
-          expect(user.email).toBe(uInfo.email)
-        })
-      })
+        const podcasts = await podcastsRepository.find();
+        podcastIds = podcasts.map((podcast) => podcast.id);
+      });
+      it("should get all podcasts", () =>
+        publicTest(`
+{
+              getAllPodcasts {
+                ok
+                podcasts {
+                  id
+                }
+              }
+            }`)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  getAllPodcasts: { ok, podcasts }
+                }
+              }
+            } = res;
+            const receivedPodcastIds = podcasts.map((podcast) => podcast.id);
+            expect(ok).toBe(true);
+            expect(receivedPodcastIds).toStrictEqual(podcastIds);
+          }));
     });
-    describe('editProfile', () => {
-      const getVar = (email) => `mutation{
-        editProfile(input:{
-          email:"${email}"
-        }){
-          ok
-          error
-        }
-      }`
-      it("should update profile", () => {
-        return privateTest(getVar(wrongInfo.email), gotToken).expect(200).expect(res => {
-          const { body: { data: { editProfile: { ok } } } } = res
-          expect(ok).toBe(true)
-        })
-      })
-      it("should return Found user ", () => {
-        return privateTest(getVarSeeProfile(userId), gotToken).expect(200).expect(res => {
-          const { body: { data: { seeProfile: { ok, user } } } } = res
-          expect(ok).toBe(true)
-          expect(user.email).toBe(wrongInfo.email)
-        })
-      })
+    describe("getPodcast", () => {
+      let podcastId: number;
+      beforeAll(async () => {
+        const [podcast] = await podcastsRepository.find();
+        podcastId = podcast.id;
+      });
+      it("should get a podcast", () =>
+        publicTest(`
+            {
+              getPodcast(input: {id: ${podcastId}}) {
+                ok
+                podcast {
+                  id
+                }
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  getPodcast: {
+                    ok,
+                    podcast: { id }
+                  }
+                }
+              }
+            } = res;
+            expect(ok).toBe(true);
+            expect(id).toBe(podcastId);
+          }));
+      it("should fail get a podcast", () =>
+        publicTest(`
+          {
+            getPodcast(input: {id: ${podcastId + 1}}) {
+              ok
+              error
+              podcast {
+                id
+              }
+            }
+          }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  getPodcast: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe(`Podcast with id ${podcastId + 1} not found`);
+          }));
+    });
+    describe("updatePodcast", () => {
+      const rating = 3;
+      let podcastId: number;
+      beforeAll(async () => {
+        const [podcast] = await podcastsRepository.find();
+        podcastId = podcast.id;
+      });
+      it("should success to update Podcast", () => {
+        return publicTest(`
+            mutation {
+              updatePodcast(input: { id: ${podcastId}, payload: { rating: ${rating} } }) {
+                ok
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  updatePodcast: { ok }
+                }
+              }
+            } = res;
+            expect(ok).toBe(true);
+          });
+      });
+      it("should failed to update Podcast, becuase of getPodcast emitting error", () => {
+        const errorPodcastId = 1000;
+        return publicTest(`
+            mutation {
+              updatePodcast(input: { id: ${errorPodcastId}, payload: { rating: ${rating} } }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  updatePodcast: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe(`Podcast with id ${errorPodcastId} not found`);
+          });
+      });
+      it("should fail to update Podcast, due to invalid payload", () => {
+        const errorRating = 10;
+        return publicTest(`
+            mutation {
+              updatePodcast(input: { id: ${podcastId}, payload: { rating: ${errorRating} } }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  updatePodcast: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe("Rating must be between 1 and 5.");
+          });
+      });
+    });
+    describe("createEpisode", () => {
+      let podcastId: number;
+      beforeAll(async () => {
+        const [podcast] = await podcastsRepository.find();
+        podcastId = podcast.id;
+      });
+      it("should success to create Episode", () => {
+        return publicTest(`
+            mutation {
+              createEpisode(input: {
+                podcastId: ${podcastId},
+                title: "${testEpisode.title}",
+                category: "${testEpisode.category}"
+              }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            expect(res.body.data.createEpisode.ok).toBe(true);
+          });
+      });
+      it("should fail to create Episode, because of getPodcast emitting error", () => {
+        const errorPodcastId = 1000;
+        return publicTest(`
+            mutation {
+              createEpisode(input: {
+                podcastId: ${errorPodcastId},
+                title: "${testEpisode.title}",
+                category: "${testEpisode.category}"
+              }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            expect(res.body.data.createEpisode.ok).toBe(false);
+            expect(res.body.data.createEpisode.error).toBe(
+              `Podcast with id ${errorPodcastId} not found`
+            );
+          });
+      });
+    });
+    describe("getEpisodes", () => {
+      let podcastId: number;
+      let episodeIds: number[];
+      beforeAll(async () => {
+        const [podcast] = await podcastsRepository.find();
+        podcastId = podcast.id;
+        const episodes = await episodesRepository.find({ podcast });
+        episodeIds = episodes.map((episode) => episode.id);
+      });
+      it("should success to get episodes", () => {
+        return publicTest(`
+            {
+              getEpisodes(input: { id: ${podcastId} }) {
+                ok
+                error
+                episodes {
+                  id
+                }
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  getEpisodes: { ok, error, episodes }
+                }
+              }
+            } = res;
+            const receivedEpisodeIds = episodes.map((episode) => episode.id);
+            expect(ok).toBe(true);
+            expect(receivedEpisodeIds).toEqual(episodeIds);
+          });
+      });
+      it("should failed to get episodes because of getPodcast emtting error", () => {
+        const errorPodcastId = 1000;
+        return publicTest(`
+            {
+              getEpisodes(input: { id: ${errorPodcastId} }) {
+                ok
+                error
+                episodes {
+                  id
+                }
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  getEpisodes: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe(`Podcast with id ${errorPodcastId} not found`);
+          });
+      });
+    });
+    describe("updateEpisode", () => {
+      const newTitle = "new title";
+      let podcastId: number;
+      let episodeId: number;
+      beforeAll(async () => {
+        const [podcast] = await podcastsRepository.find();
+        podcastId = podcast.id;
+        const [episode] = await episodesRepository.find({ podcast });
+        episodeId = episode.id;
+      });
+      it("should success to update", () => {
+        return publicTest(`
+            mutation {
+              updateEpisode(input: {
+                podcastId: ${podcastId},
+                episodeId: ${episodeId},
+                title: "${newTitle}"
+              }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  updateEpisode: { ok }
+                }
+              }
+            } = res;
+            expect(ok).toBe(true);
+          });
+      });
+      it("should failed to update, because of podcast not found", () => {
+        const errorPodcastId = 1000;
+        return publicTest(`
+            mutation {
+              updateEpisode(input: {
+                podcastId: ${errorPodcastId},
+                episodeId: ${episodeId},
+                title: "${newTitle}"
+              }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  updateEpisode: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe(`Podcast with id ${errorPodcastId} not found`);
+          });
+      });
+      it("should failed to update, because of episode not found", () => {
+        const errorEpisodeId = 1000;
+        return publicTest(`
+            mutation {
+              updateEpisode(input: {
+                podcastId: ${podcastId},
+                episodeId: ${errorEpisodeId},
+                title: "${newTitle}"
+              }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  updateEpisode: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe(
+              `Episode with id ${errorEpisodeId} not found in podcast with id ${podcastId}`
+            );
+          });
+      });
+    });
+    describe("deleteEpisode", () => {
+      let podcastId: number;
+      let episodeId: number;
+      beforeAll(async () => {
+        const [podcast] = await podcastsRepository.find();
+        podcastId = podcast.id;
+        const [episode] = await episodesRepository.find({ podcast });
+        episodeId = episode.id;
+      });
+      it("should success to delete Episode", () => {
+        return publicTest(`
+            mutation {
+              deleteEpisode(input: { podcastId: ${podcastId}, episodeId: ${episodeId} }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  deleteEpisode: { ok }
+                }
+              }
+            } = res;
+            expect(ok).toBe(true);
+          });
+      });
+      it("should fail to delete Episode, because of episode not found", () => {
+        return publicTest(`
+            mutation {
+              deleteEpisode(input: { podcastId: ${podcastId}, episodeId: ${episodeId} }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  deleteEpisode: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe(
+              `Episode with id ${episodeId} not found in podcast with id ${podcastId}`
+            );
+          });
+      });
+      it("should fail to delete Episode, because of podcast not found", () => {
+        const errorPodcastId = 1000;
+        return publicTest(`
+            mutation {
+              deleteEpisode(input: { podcastId: ${errorPodcastId}, episodeId: ${episodeId} }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  deleteEpisode: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe(`Podcast with id ${errorPodcastId} not found`);
+          });
+      });
+    });
+    describe("deletePodcast", () => {
+      let podcastId: number;
+      beforeAll(async () => {
+        const [podcast] = await podcastsRepository.find();
+        podcastId = podcast.id;
+      });
+      it("should success to delete", () => {
+        return publicTest(`
+            mutation {
+              deletePodcast(input: { id: ${podcastId} }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  deletePodcast: { ok }
+                }
+              }
+            } = res;
+            expect(ok).toBe(true);
+          });
+      });
+      it("should fail to delete, because of podcast not found", () => {
+        return publicTest(`
+            mutation {
+              deletePodcast(input: { id: ${podcastId} }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  deletePodcast: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe(`Podcast with id ${podcastId} not found`);
+          });
+      });
+    });
+  });
+  describe("Users Resolver", () => {
+    describe("createAccount", () => {
+      it("should create a new account", () => {
+        return publicTest(`
+          mutation {
+            createAccount(input: {
+              email: "${testUser.email}",
+              password: "${testUser.password}",
+              role: Host
+            }) {
+              ok
+              error
+            }
+          }
+        `)
+          .expect(200)
+          .expect((res) => {
+            expect(res.body.data.createAccount.ok).toBe(true);
+            expect(res.body.data.createAccount.error).toBe(null);
+          });
+      });
+      it("should fail if account already exists", () => {
+        return publicTest(`
+            mutation {
+              createAccount(input: {
+                email: "${testUser.email}",
+                password: "${testUser.password}",
+                role: Host
+              }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            expect(res.body.data.createAccount.ok).toBe(false);
+            expect(res.body.data.createAccount.error).toBe(
+              "There is a user with that email already"
+            );
+          });
+      });
+    });
+    describe("login", () => {
+      it("should succuess to login", () => {
+        return publicTest(`
+          mutation {
+            login(input: {
+              email: "${testUser.email}",
+              password: "${testUser.password}"
+            }) {
+              ok
+              error
+              token
+            }
+          }
+        `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  login: { ok, token }
+                }
+              }
+            } = res;
+            expect(ok).toBe(true);
+            expect(token).toEqual(expect.any(String));
+            jwtToken = token;
+          });
+      });
+      it("should fail if user not found", () => {
+        const fakeEmail = "fake@fake.com";
+        return publicTest(`
+            mutation {
+              login(input: {
+                email: "${fakeEmail}",
+                password: "${testUser.password}"
+              }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  login: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe("User not found");
+          });
+      });
+      it("should fail if wrong password", () => {
+        const fakePassword = "fakePassword";
+        return publicTest(`
+            mutation {
+              login(input: {
+                email: "${testUser.email}",
+                password: "${fakePassword}"
+              }) {
+                ok
+                error
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  login: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe("Wrong password");
+          });
+      });
+    });
+    describe("me", () => {
+      it("should find my profile", () => {
+        return privateTest(`
+            {
+              me {
+                email
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  me: { email }
+                }
+              }
+            } = res;
+            expect(email).toBe(testUser.email);
+          });
+      });
+      it("should not allow logged out user", () => {
+        return publicTest(`
+            {
+              me {
+                email
+              }
+            }
+          `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: { errors }
+            } = res;
+            const [error] = errors;
+            expect(error.message).toBe("Forbidden resource");
+          });
+      });
+    });
+    describe("seeProfile", () => {
+      let userId: number;
+      beforeAll(async () => {
+        const [user] = await usersRepository.find();
+        userId = user.id;
+      });
+      it("should see a user's profile", () => {
+        return privateTest(`
+          {
+            seeProfile(userId: ${userId}) {
+              ok
+              user {
+                id
+              }
+            }
+          }
+        `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  seeProfile: {
+                    ok,
+                    user: { id }
+                  }
+                }
+              }
+            } = res;
+            expect(ok).toBe(true);
+            expect(id).toBe(userId);
+          });
+      });
+      it("should fail if user not found", () => {
+        const fakeUserId = 1000;
+        return privateTest(`
+          {
+            seeProfile(userId: ${fakeUserId}) {
+              ok
+              error
+            }
+          }`)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  seeProfile: { ok, error }
+                }
+              }
+            } = res;
+            expect(ok).toBe(false);
+            expect(error).toBe("User Not Found");
+          });
+      });
+      it("should not allow logged out user", () => {
+        return publicTest(`
+            {
+              seeProfile(userId: ${userId}) {
+                ok
+                error
+              }
+            }`)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: { errors }
+            } = res;
+            const [error] = errors;
+            expect(error.message).toBe("Forbidden resource");
+          });
+      });
+    });
+    describe("editProfile", () => {
+      const updateArgs = {
+        password: "updatePassword"
+      };
+      let userId: number;
+      beforeAll(async () => {
+        const [user] = await usersRepository.find();
+        userId = user.id;
+      });
+      it("should success to update profile", () => {
+        return privateTest(`
+          mutation {
+            editProfile(input: { password: "${updateArgs.password}" }) {
+              ok
+              error
+            }
+          }
+        `)
+          .expect(200)
+          .expect((res) => {
+            const {
+              body: {
+                data: {
+                  editProfile: { ok }
+                }
+              }
+            } = res;
+            expect(ok).toBe(true);
+          });
+      });
     });
   });
 });

@@ -18,3 +18,7 @@
 ## Day 5
 
 - All Service testing cover 100%
+
+## Day 6
+
+- Role Based Authentication

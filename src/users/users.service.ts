@@ -17,7 +17,7 @@ export class UsersService {
     @InjectRepository(User)
     private readonly users: Repository<User>,
     private readonly jwtService: JwtService,
-  ) { }
+  ) {}
 
   async createAccount({
     email,
@@ -40,14 +40,13 @@ export class UsersService {
         ok: true,
         error: null,
       };
-    } catch (e) {
+    } catch {
       return {
         ok: false,
         error: 'Could not create account',
       };
     }
   }
-
   async login({ email, password }: LoginInput): Promise<LoginOutput> {
     try {
       const user = await this.users.findOne(
@@ -109,7 +108,6 @@ export class UsersService {
         ok: true,
       };
     } catch (error) {
-      console.log(error)
       return {
         ok: false,
         error: 'Could not update profile',

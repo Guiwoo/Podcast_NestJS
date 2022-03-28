@@ -8,12 +8,13 @@ import { User } from './users/entities/user.entity';
 import { UsersModule } from './users/users.module';
 import { JwtModule } from './jwt/jwt.module';
 import { JwtMiddleware } from './jwt/jwt.middleware';
+import { AuthMoudle } from './auth/auth.module';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: process.env.NODE_ENV === "test" ? 'db.test.sqlite3' : 'db.sqlite3',
+      database: 'db.sqlite3',
       synchronize: true,
       logging: process.env.NODE_ENV !== 'test',
       entities: [Podcast, Episode, User],
@@ -29,6 +30,7 @@ import { JwtMiddleware } from './jwt/jwt.middleware';
     }),
     PodcastsModule,
     UsersModule,
+    AuthMoudle
   ],
 })
 export class AppModule {
