@@ -20,7 +20,8 @@ import {
   GetEpisodeOutput,
 } from './dtos/podcast.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Like, Repository } from 'typeorm';
+import { SearchPodcastByTitleInput, SearchPodcastByTitleOutput } from './dtos/searchPodcasts.dto';
 
 @Injectable()
 export class PodcastsService {
@@ -29,7 +30,7 @@ export class PodcastsService {
     private readonly podcastRepository: Repository<Podcast>,
     @InjectRepository(Episode)
     private readonly episodeRepository: Repository<Episode>,
-  ) {}
+  ) { }
 
   private readonly InternalServerErrorOutput = {
     ok: false,
@@ -217,6 +218,32 @@ export class PodcastsService {
       return { ok: true };
     } catch (e) {
       return this.InternalServerErrorOutput;
+    }
+  }
+
+  /** For Listener  */
+  async searchByTitle({ title, page }: SearchPodcastByTitleInput): Promise<SearchPodcastByTitleOutput> {
+    //forntend handle if send empty letter
+    try {
+      const targetTitle = title.trim()
+      if (targetTitle === "") {
+        return { ok: false, error: "Can not pass the empty string type at least 2 letters" }
+      }
+      const podcasts = await this.podcastRepository.find({
+        where: {
+          title: Like(`%${title}%`),
+        },
+        order: {
+          createdAt: "DESC"
+        },
+        skip: (page - 1) * 10,
+        take: 10
+      })
+      return { ok: true, podcasts }
+    }
+    catch (e) {
+      console.log("In Search By title", e)
+      return this.InternalServerErrorOutput
     }
   }
 }
