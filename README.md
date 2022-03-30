@@ -22,3 +22,8 @@
 ## Day 6
 
 - Role Based Authentication
+
+## Day7
+
+- [x] Review
+- [x] SearchByTitle

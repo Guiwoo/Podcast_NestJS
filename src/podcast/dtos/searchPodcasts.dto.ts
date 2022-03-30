@@ -18,4 +18,8 @@ export class SearchPodcastByTitleInput {
 export class SearchPodcastByTitleOutput extends CoreOutput {
     @Field(type => [Podcast], { nullable: true })
     podcasts?: Podcast[]
+
+    @Field(type => Number, { defaultValue: 0 })
+    @IsNumber()
+    totalPage?: number
 }

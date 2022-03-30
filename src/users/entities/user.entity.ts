@@ -5,10 +5,11 @@ import {
   registerEnumType,
 } from '@nestjs/graphql';
 import { IsString, IsEmail } from 'class-validator';
-import { Column, Entity, BeforeInsert, BeforeUpdate } from 'typeorm';
+import { Column, Entity, BeforeInsert, BeforeUpdate, OneToMany, ManyToOne } from 'typeorm';
 import { CoreEntity } from './core.entity';
 import * as bcrypt from 'bcrypt';
 import { InternalServerErrorException } from '@nestjs/common';
+import { Review } from 'src/podcast/entities/review.entity';
 
 export enum UserRole {
   Host = 'Host',
@@ -34,6 +35,10 @@ export class User extends CoreEntity {
   @Column({ type: 'simple-enum', enum: UserRole })
   @Field(type => UserRole)
   role: UserRole;
+
+  @OneToMany(() => Review, (r) => r.user)
+  @Field(type => [Review])
+  reviews: Review[]
 
   @BeforeInsert()
   @BeforeUpdate()

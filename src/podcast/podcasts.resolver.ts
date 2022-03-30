@@ -23,6 +23,9 @@ import { UpdateEpisodeInput } from "./dtos/update-episode.dto";
 import { Role } from "src/auth/role.decorator";
 import { query } from "express";
 import { SearchPodcastByTitleInput, SearchPodcastByTitleOutput } from "./dtos/searchPodcasts.dto";
+import { CreateReviewInput, CreateReviewOutput } from "./dtos/create-review.dto";
+import { User } from "src/users/entities/user.entity";
+import { AuthUser } from "src/auth/auth-user.decorator";
 
 @Resolver((of) => Podcast)
 export class PodcastsResolver {
@@ -107,8 +110,13 @@ export class ListnerResolver {
 
   @Role(["Any"])
   @Query((returns) => SearchPodcastByTitleOutput)
-  SearchPodcastByTitle(@Args('input') searchPodcastByTitleInput: SearchPodcastByTitleInput): Promise<SearchPodcastByTitleOutput> {
+  searchPodcastByTitle(@Args('input') searchPodcastByTitleInput: SearchPodcastByTitleInput): Promise<SearchPodcastByTitleOutput> {
     return this.podcastService.searchByTitle(searchPodcastByTitleInput)
   }
 
+  // @Role(["Listener"])
+  @Mutation((returns) => CreateReviewOutput)
+  createReview(@AuthUser() user: User, @Args('input') createReviewInput: CreateReviewInput): Promise<CreateReviewOutput> {
+    return this.podcastService.createReview(createReviewInput, user.id)
+  }
 }

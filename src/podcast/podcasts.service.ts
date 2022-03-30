@@ -22,6 +22,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Like, Repository } from 'typeorm';
 import { SearchPodcastByTitleInput, SearchPodcastByTitleOutput } from './dtos/searchPodcasts.dto';
+import { CreateReviewInput, CreateReviewOutput } from './dtos/create-review.dto';
+import { User } from 'src/users/entities/user.entity';
+import { Review } from './entities/review.entity';
 
 @Injectable()
 export class PodcastsService {
@@ -30,6 +33,10 @@ export class PodcastsService {
     private readonly podcastRepository: Repository<Podcast>,
     @InjectRepository(Episode)
     private readonly episodeRepository: Repository<Episode>,
+    @InjectRepository(Review)
+    private readonly reviewRepository: Repository<Review>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) { }
 
   private readonly InternalServerErrorOutput = {
@@ -221,7 +228,10 @@ export class PodcastsService {
     }
   }
 
-  /** For Listener  */
+  /** @@@ 
+   *  For Listener  
+   *  */
+
   async searchByTitle({ title, page }: SearchPodcastByTitleInput): Promise<SearchPodcastByTitleOutput> {
     //forntend handle if send empty letter
     try {
@@ -229,7 +239,7 @@ export class PodcastsService {
       if (targetTitle === "") {
         return { ok: false, error: "Can not pass the empty string type at least 2 letters" }
       }
-      const podcasts = await this.podcastRepository.find({
+      const [podcasts, total] = await this.podcastRepository.findAndCount({
         where: {
           title: Like(`%${title}%`),
         },
@@ -239,10 +249,38 @@ export class PodcastsService {
         skip: (page - 1) * 10,
         take: 10
       })
-      return { ok: true, podcasts }
+      return { ok: true, podcasts, totalPage: Math.ceil(total / 10) }
     }
     catch (e) {
       console.log("In Search By title", e)
+      return this.InternalServerErrorOutput
+    }
+  }
+
+  async createReview(createReviewInput: CreateReviewInput, userId: number): Promise<CreateReviewOutput> {
+    try {
+      if (createReviewInput.review.trim() === "") {
+        return {
+          ok: false,
+          error: "Can't not leave a Review without any text"
+        }
+      }
+      const { podcast, ok, error } = await this.getPodcast(createReviewInput.podcastId);
+      if (!podcast) {
+        return {
+          ok: false,
+          error: "This Podcast does not exist, Please Check Podcast First"
+        }
+      }
+      const user = await this.userRepository.findOne({ id: userId })
+      const newReview = await this.reviewRepository.create({ review: createReviewInput.review, podcast, user })
+      const { id } = await this.reviewRepository.save(newReview)
+      return {
+        ok: true,
+        id
+      }
+    } catch (e) {
+      console.log("In Create Review", e)
       return this.InternalServerErrorOutput
     }
   }

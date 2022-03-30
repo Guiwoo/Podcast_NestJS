@@ -9,6 +9,7 @@ import { UsersModule } from "./users/users.module";
 import { JwtModule } from "./jwt/jwt.module";
 import { JwtMiddleware } from "./jwt/jwt.middleware";
 import { AuthModule } from "./auth/auth.module";
+import { Review } from "./podcast/entities/review.entity";
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { AuthModule } from "./auth/auth.module";
       database: "db.sqlite3",
       synchronize: true,
       logging: process.env.NODE_ENV !== "test",
-      entities: [Podcast, Episode, User]
+      entities: [Podcast, Episode, User, Review]
     }),
     GraphQLModule.forRoot({
       autoSchemaFile: true,
