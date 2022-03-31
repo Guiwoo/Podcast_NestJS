@@ -26,6 +26,7 @@ import { SearchPodcastByTitleInput, SearchPodcastByTitleOutput } from "./dtos/se
 import { CreateReviewInput, CreateReviewOutput } from "./dtos/create-review.dto";
 import { User } from "src/users/entities/user.entity";
 import { AuthUser } from "src/auth/auth-user.decorator";
+import { SubscribePodcastInput, SubscribePodcastOutput } from "./dtos/subscribe-podcast.dto";
 
 @Resolver((of) => Podcast)
 export class PodcastsResolver {
@@ -114,9 +115,15 @@ export class ListnerResolver {
     return this.podcastService.searchByTitle(searchPodcastByTitleInput)
   }
 
-  // @Role(["Listener"])
+  @Role(["Listener"])
   @Mutation((returns) => CreateReviewOutput)
   createReview(@AuthUser() user: User, @Args('input') createReviewInput: CreateReviewInput): Promise<CreateReviewOutput> {
     return this.podcastService.createReview(createReviewInput, user.id)
+  }
+
+  @Role(["Listener"])
+  @Mutation(returns => SubscribePodcastOutput)
+  subscribePodcast(@AuthUser() user: User, @Args('input') subscribePodcastInput: SubscribePodcastInput): Promise<SubscribePodcastOutput> {
+    return this.podcastService.subscribePodcast(subscribePodcastInput.podcastId, user.id)
   }
 }

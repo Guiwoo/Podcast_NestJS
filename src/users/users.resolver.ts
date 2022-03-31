@@ -15,7 +15,7 @@ import { Role } from "src/auth/role.decorator";
 
 @Resolver((of) => User)
 export class UsersResolver {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Mutation((returns) => CreateAccountOutput)
   createAccount(

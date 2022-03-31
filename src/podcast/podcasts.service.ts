@@ -25,6 +25,7 @@ import { SearchPodcastByTitleInput, SearchPodcastByTitleOutput } from './dtos/se
 import { CreateReviewInput, CreateReviewOutput } from './dtos/create-review.dto';
 import { User } from 'src/users/entities/user.entity';
 import { Review } from './entities/review.entity';
+import { SubscribePodcastInput, SubscribePodcastOutput } from './dtos/subscribe-podcast.dto';
 
 @Injectable()
 export class PodcastsService {
@@ -281,6 +282,29 @@ export class PodcastsService {
       }
     } catch (e) {
       console.log("In Create Review", e)
+      return this.InternalServerErrorOutput
+    }
+  }
+
+  async subscribePodcast(podcastId: number, userId: number): Promise<SubscribePodcastOutput> {
+    try {
+      const podcast = await this.podcastRepository.findOne({ id: podcastId })
+      if (!podcast) {
+        return {
+          ok: false,
+          error: "This podcast does not exist"
+        }
+      }
+      const user = await this.userRepository.findOne({ id: userId })
+
+      user.subscribe = [podcast]
+      podcast.subscriber = [user]
+
+      await this.userRepository.save(user)
+      await this.podcastRepository.save(podcast)
+      return { ok: true }
+    } catch (e) {
+      console.log("✅✅✅✅✅✅", e)
       return this.InternalServerErrorOutput
     }
   }
