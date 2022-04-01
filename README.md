@@ -27,6 +27,8 @@
 
 - [x] Review
 - [x] SearchByTitle
-- [] subscribeToPodcast "on User"
+- [x] subscribeToPodcast "on User"
+  - type orm kepp dropping my db about many to many field
+  - [x] um.... need to do many to many ?
 - [] seeSubscriptions "on UserResolver"
 - [] markEpisodeAsPlayed (like a Netflix movie that has been watched) "need to think"

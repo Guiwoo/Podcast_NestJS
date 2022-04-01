@@ -1,6 +1,7 @@
 import { ObjectType, Field } from '@nestjs/graphql';
 import { IsString } from 'class-validator';
-import { Column, Entity, ManyToOne, RelationId } from 'typeorm';
+import { User } from 'src/users/entities/user.entity';
+import { Column, Entity, JoinTable, ManyToMany, ManyToOne, RelationId } from 'typeorm';
 import { CoreEntity } from './core.entity';
 import { Podcast } from './podcast.entity';
 
@@ -22,4 +23,9 @@ export class Episode extends CoreEntity {
   })
   @Field(type => Podcast)
   podcast: Podcast;
+
+  @ManyToMany(() => User, (u) => u.played)
+  @JoinTable()
+  @Field(type => [User])
+  played: User[]
 }

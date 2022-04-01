@@ -17,7 +17,7 @@ export class UsersService {
     @InjectRepository(User)
     private readonly users: Repository<User>,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   async createAccount({
     email,
@@ -40,7 +40,8 @@ export class UsersService {
         ok: true,
         error: null,
       };
-    } catch {
+    } catch (e) {
+      console.log(e)
       return {
         ok: false,
         error: 'Could not create account',

@@ -18,6 +18,8 @@ import {
   EpisodesSearchInput,
   GetAllPodcastsOutput,
   GetEpisodeOutput,
+  MarkEpisodeAsPlayedInput,
+  MarkEpisodeAsPlayedOutput,
 } from './dtos/podcast.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Like, Repository } from 'typeorm';
@@ -25,7 +27,8 @@ import { SearchPodcastByTitleInput, SearchPodcastByTitleOutput } from './dtos/se
 import { CreateReviewInput, CreateReviewOutput } from './dtos/create-review.dto';
 import { User } from 'src/users/entities/user.entity';
 import { Review } from './entities/review.entity';
-import { SubscribePodcastInput, SubscribePodcastOutput } from './dtos/subscribe-podcast.dto';
+import { SeeSubCriptionsOutput, SubscribePodcastInput, SubscribePodcastOutput } from './dtos/subscribe-podcast.dto';
+import { userInfo } from 'os';
 
 @Injectable()
 export class PodcastsService {
@@ -77,7 +80,7 @@ export class PodcastsService {
     try {
       const podcast = await this.podcastRepository.findOne(
         { id },
-        { relations: ['episodes'] },
+        { relations: ['episodes', 'subscriber'] },
       );
       if (!podcast) {
         return {
@@ -296,15 +299,47 @@ export class PodcastsService {
         }
       }
       const user = await this.userRepository.findOne({ id: userId })
-
-      user.subscribe = [podcast]
-      podcast.subscriber = [user]
-
+      if (!user.subscribe === undefined) {
+        user.subscribe = [podcast]
+      } else {
+        user.subscribe = [...user.subscribe, podcast]
+      }
       await this.userRepository.save(user)
-      await this.podcastRepository.save(podcast)
+
       return { ok: true }
     } catch (e) {
-      console.log("✅✅✅✅✅✅", e)
+      return this.InternalServerErrorOutput
+    }
+  }
+  //Does not need to go user parts ? idk
+  async seeSubscriptions(userId: number): Promise<SeeSubCriptionsOutput> {
+    try {
+      const user = await this.userRepository.findOne({ id: userId }, { relations: ["subscribe"] })
+      return { ok: true, podcasts: user.subscribe }
+    } catch (e) {
+      console.log(e)
+      return this.InternalServerErrorOutput
+    }
+  }
+
+  async markedAsPlayed(userId: number, input: MarkEpisodeAsPlayedInput): Promise<MarkEpisodeAsPlayedOutput> {
+    try {
+      const { episode, ok, error } = await this.getEpisode(input)
+      if (!ok) {
+        return { ok: false, error: "Can't Marking the Epiosde" }
+      }
+      const user = await this.userRepository.findOne({ id: userId })
+      if (!episode.played) {
+        episode.played = [user]
+      } else {
+        episode.played = [...episode.played, user]
+      }
+      await this.episodeRepository.save(episode)
+      return {
+        ok: true
+      }
+    } catch (e) {
+      console.log("✅✅✅✅✅✅✅✅✅✅", e)
       return this.InternalServerErrorOutput
     }
   }

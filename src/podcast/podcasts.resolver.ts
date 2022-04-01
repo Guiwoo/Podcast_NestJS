@@ -11,7 +11,9 @@ import {
   PodcastOutput,
   EpisodesOutput,
   EpisodesSearchInput,
-  GetAllPodcastsOutput
+  GetAllPodcastsOutput,
+  MarkEpisodeAsPlayedOutput,
+  MarkEpisodeAsPlayedInput
 } from "./dtos/podcast.dto";
 import { UpdatePodcastInput } from "./dtos/update-podcast.dto";
 import { Episode } from "./entities/episode.entity";
@@ -21,12 +23,11 @@ import {
 } from "./dtos/create-episode.dto";
 import { UpdateEpisodeInput } from "./dtos/update-episode.dto";
 import { Role } from "src/auth/role.decorator";
-import { query } from "express";
 import { SearchPodcastByTitleInput, SearchPodcastByTitleOutput } from "./dtos/searchPodcasts.dto";
 import { CreateReviewInput, CreateReviewOutput } from "./dtos/create-review.dto";
 import { User } from "src/users/entities/user.entity";
 import { AuthUser } from "src/auth/auth-user.decorator";
-import { SubscribePodcastInput, SubscribePodcastOutput } from "./dtos/subscribe-podcast.dto";
+import { SeeSubCriptionsOutput, SubscribePodcastInput, SubscribePodcastOutput } from "./dtos/subscribe-podcast.dto";
 
 @Resolver((of) => Podcast)
 export class PodcastsResolver {
@@ -125,5 +126,17 @@ export class ListnerResolver {
   @Mutation(returns => SubscribePodcastOutput)
   subscribePodcast(@AuthUser() user: User, @Args('input') subscribePodcastInput: SubscribePodcastInput): Promise<SubscribePodcastOutput> {
     return this.podcastService.subscribePodcast(subscribePodcastInput.podcastId, user.id)
+  }
+
+  @Role(["Listener"])
+  @Query(returns => SeeSubCriptionsOutput)
+  seeSubscriptions(@AuthUser() user: User): Promise<SeeSubCriptionsOutput> {
+    return this.podcastService.seeSubscriptions(user.id)
+  }
+
+  @Role(["Listener"])
+  @Mutation(returns => MarkEpisodeAsPlayedOutput)
+  markEpisodeAsPlayed(@AuthUser() user: User, @Args("input") markedInput: MarkEpisodeAsPlayedInput): Promise<MarkEpisodeAsPlayedOutput> {
+    return this.podcastService.markedAsPlayed(user.id, markedInput)
   }
 }
