@@ -1,24 +1,32 @@
-import { Field, ObjectType } from "@nestjs/graphql";
+import { ObjectType, Field } from "@nestjs/graphql";
 import { IsString } from "class-validator";
-import { User } from "src/users/entities/user.entity";
-import { Column, Entity, ManyToMany, ManyToOne, OneToMany, OneToOne } from "typeorm";
+import { Column, Entity, ManyToOne } from "typeorm";
 import { CoreEntity } from "./core.entity";
 import { Podcast } from "./podcast.entity";
+import { User } from "../../users/entities/user.entity";
 
 @Entity()
 @ObjectType()
 export class Review extends CoreEntity {
+  @Column()
+  @Field((type) => String)
+  @IsString()
+  title: string;
 
-    @ManyToOne(() => User, (user) => user.reviews, { onDelete: "CASCADE" })
-    @Field(type => User)
-    user: User
+  @Column()
+  @Field((type) => String)
+  @IsString()
+  text: string;
 
-    @Column()
-    @Field(type => String)
-    @IsString()
-    review: string;
+  @ManyToOne(() => Podcast, (podcast) => podcast.reviews, {
+    onDelete: "CASCADE"
+  })
+  @Field((type) => Podcast)
+  podcast: Podcast;
 
-    @ManyToOne(() => Podcast, (p) => p.reviews, { onDelete: "CASCADE" })
-    @Field(type => Podcast)
-    podcast: Podcast
+  @ManyToOne(() => User, (user) => user.reviews, {
+    onDelete: "CASCADE"
+  })
+  @Field((type) => User)
+  creator: User;
 }

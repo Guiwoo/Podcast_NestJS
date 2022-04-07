@@ -1,5 +1,4 @@
 import { Resolver, Mutation, Args, Query } from "@nestjs/graphql";
-import { UseGuards } from "@nestjs/common";
 import { User } from "./entities/user.entity";
 import { UsersService } from "./users.service";
 import {
@@ -8,14 +7,22 @@ import {
 } from "./dtos/create-account.dto";
 import { LoginInput, LoginOutput } from "./dtos/login.dto";
 import { AuthUser } from "../auth/auth-user.decorator";
-import { AuthGuard } from "../auth/auth.guard";
 import { UserProfileInput, UserProfileOutput } from "./dtos/user-profile.dto";
 import { EditProfileInput, EditProfileOutput } from "./dtos/edit-profile.dto";
 import { Role } from "src/auth/role.decorator";
+import {
+  ToggleSubscribeOutput,
+  ToggleSubscribeInput
+} from "./dtos/subscribe.dto";
+import { Podcast } from "src/podcast/entities/podcast.entity";
+import {
+  MarkEpisodeAsPlayedOutput,
+  MarkEpisodeAsPlayedInput
+} from "./dtos/mark-episode-played.dto";
 
 @Resolver((of) => User)
 export class UsersResolver {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Mutation((returns) => CreateAccountOutput)
   createAccount(
@@ -50,5 +57,32 @@ export class UsersResolver {
     @Args("input") editProfileInput: EditProfileInput
   ): Promise<EditProfileOutput> {
     return this.usersService.editProfile(authUser.id, editProfileInput);
+  }
+
+  @Role(["Listener"])
+  @Mutation(() => ToggleSubscribeOutput)
+  toggleSubscribe(
+    @AuthUser() user: User,
+    @Args("input") toggleSubscribeInput: ToggleSubscribeInput
+  ): Promise<ToggleSubscribeOutput> {
+    return this.usersService.toggleSubscribe(user, toggleSubscribeInput);
+  }
+
+  @Role(["Listener"])
+  @Query(() => [Podcast])
+  subscriptions(@AuthUser() user: User): Podcast[] {
+    return user.subsriptions;
+  }
+
+  @Role(["Listener"])
+  @Mutation(() => MarkEpisodeAsPlayedOutput)
+  markEpisodeAsPlayed(
+    @AuthUser() user: User,
+    @Args("input") markEpisodeAsPlayedInput: MarkEpisodeAsPlayedInput
+  ): Promise<MarkEpisodeAsPlayedOutput> {
+    return this.usersService.markEpisodeAsPlayed(
+      user,
+      markEpisodeAsPlayedInput
+    );
   }
 }
